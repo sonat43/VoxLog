@@ -1,0 +1,108 @@
+.loading-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    background: radial-gradient(circle at 50% 50%, #111827 0%, #000000 100%);
+    z-index: 9999;
+}
+
+.loader-3d {
+    position: relative;
+    width: 150px;
+    height: 150px;
+    transform-style: preserve-3d;
+    perspective: 800px;
+    animation: rotate3d 2s infinite linear;
+}
+
+@keyframes rotate3d {
+    0% {
+        transform: rotateX(0) rotateY(0) rotateZ(0);
+    }
+
+    100% {
+        transform: rotateX(360deg) rotateY(180deg) rotateZ(360deg);
+    }
+}
+
+.face {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    border: 2px solid transparent;
+    border-top: 2px solid #06b6d4;
+    /* Cyan-500 */
+    border-bottom: 2px solid #8b5cf6;
+    /* Violet-500 */
+}
+
+.face1 {
+    transform: rotateX(60deg) rotateY(0deg);
+    animation: pulse1 1s infinite alternate;
+}
+
+.face2 {
+    transform: rotateX(0deg) rotateY(60deg);
+    animation: pulse2 1s infinite alternate;
+    border-top: 2px solid #ec4899;
+    /* Pink-500 */
+    border-bottom: 2px solid #22d3ee;
+    /* Cyan-400 */
+}
+
+@keyframes pulse1 {
+    0% {
+        transform: rotateX(60deg) rotateY(0deg) scale(1);
+    }
+
+    100% {
+        transform: rotateX(60deg) rotateY(0deg) scale(1.1);
+        box-shadow: 0 0 20px rgba(6, 182, 212, 0.5);
+    }
+}
+
+@keyframes pulse2 {
+    0% {
+        transform: rotateX(0deg) rotateY(60deg) scale(1);
+    }
+
+    100% {
+        transform: rotateX(0deg) rotateY(60deg) scale(0.9);
+        box-shadow: 0 0 20px rgba(236, 72, 153, 0.5);
+    }
+}
+
+/* Inner Core */
+.loader-3d::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 20px;
+    height: 20px;
+    background: white;
+    border-radius: 50%;
+    box-shadow: 0 0 30px #fff, 0 0 60px #06b6d4;
+    animation: corePulse 1.5s infinite ease-in-out alternate;
+}
+
+@keyframes corePulse {
+    0% {
+        transform: translate(-50%, -50%) scale(0.8);
+        opacity: 0.8;
+    }
+
+    100% {
+        transform: translate(-50%, -50%) scale(1.5);
+        opacity: 1;
+    }
+}

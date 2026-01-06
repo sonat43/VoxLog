@@ -1,0 +1,217 @@
+.login-page-container {
+    display: flex;
+    height: 100vh;
+    /* Changed from min-height to height for 100vh lock */
+    width: 100vw;
+    position: relative;
+    overflow: hidden;
+    /* Prevent scrolling */
+}
+
+.bg-gradient-mesh {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: -1;
+    background:
+        radial-gradient(circle at 10% 20%, rgba(6, 182, 212, 0.05) 0%, transparent 40%),
+        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.05) 0%, transparent 40%);
+    pointer-events: none;
+}
+
+/* Left Section */
+.info-section {
+    flex: 5.5;
+    padding: 0 3.5rem;
+    /* Reduced padding */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    z-index: 1;
+    height: 100%;
+}
+
+.brand-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+    /* Reduced from 2rem */
+}
+
+.logo-img {
+    height: 70px;
+    /* Reduced from 85px */
+    width: auto;
+    object-fit: contain;
+}
+
+.brand-name {
+    font-size: 2.25rem;
+    /* Reduced from 3rem */
+    font-weight: 800;
+    color: white;
+    letter-spacing: -0.03em;
+    margin: 0;
+    text-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
+}
+
+.hero-headline {
+    font-size: 2.5rem;
+    /* Reduced from 3rem */
+    line-height: 1.1;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    color: white;
+    margin-bottom: 1rem;
+    text-align: left;
+}
+
+.text-gradient {
+    background: linear-gradient(135deg, #22d3ee, #818cf8);
+    -webkit-background-clip: text;
+    background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.hero-subtext {
+    font-size: 1rem;
+    /* Reduced from 1.15rem */
+    line-height: 1.5;
+    color: var(--color-text-muted);
+    max-width: 550px;
+    margin-bottom: 2rem;
+    /* Reduced from 3rem */
+    text-align: left;
+}
+
+/* Trust Flow positioning */
+.trust-flow-wrapper {
+    margin-top: 0.5rem;
+}
+
+.footer-mini {
+    position: absolute;
+    bottom: 0.25rem;
+    /* Pushed further down */
+    left: 3.5rem;
+    font-size: 0.75rem;
+    color: rgba(156, 163, 175, 0.5);
+}
+
+/* Right Section */
+.action-section {
+    flex: 4.5;
+    /* Adjusted ratio */
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    /* Removed padding to let it stretch if needed, but flex center keeps it in middle */
+    background: rgba(0, 0, 0, 0.2);
+    border-left: 1px solid rgba(255, 255, 255, 0.03);
+    height: 100%;
+}
+
+/* Dynamic Floating Animation for the Card */
+@keyframes float {
+    0% {
+        transform: translateY(0px);
+    }
+
+    50% {
+        transform: translateY(-10px);
+    }
+
+    100% {
+        transform: translateY(0px);
+    }
+}
+
+.login-card-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    animation: float 6s ease-in-out infinite;
+}
+
+/* Responsiveness */
+@media (max-width: 1024px) {
+    .login-page-container {
+        flex-direction: column;
+        height: auto;
+        min-height: 100vh;
+        overflow-y: auto;
+        /* Allow scroll on mobile */
+    }
+
+    .info-section {
+        padding: 3rem 2rem;
+        flex: none;
+        height: auto;
+    }
+
+    .logo-img {
+        height: 48px;
+    }
+
+    .brand-header {
+        margin-bottom: 2rem;
+    }
+
+    .hero-headline {
+        font-size: 2.25rem;
+    }
+
+    .footer-mini {
+        position: static;
+        margin-top: 3rem;
+        padding-left: 0;
+    }
+
+    .action-section {
+        flex: none;
+        min-height: 50vh;
+        padding: 3rem 1.5rem;
+        background: rgba(0, 0, 0, 0.4);
+        border-left: none;
+        border-top: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .login-card-wrapper {
+        animation: none;
+    }
+}
+
+@media (max-width: 640px) {
+    .info-section {
+        padding: 2rem 1.5rem;
+    }
+
+    .brand-header {
+        margin-bottom: 1.5rem;
+    }
+
+    .hero-headline {
+        font-size: 1.85rem;
+    }
+
+    .hero-subtext {
+        font-size: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .action-section {
+        padding: 2rem 1rem;
+        min-height: auto;
+    }
+
+    .footer-mini {
+        font-size: 0.75rem;
+        text-align: center;
+        margin-top: 2rem;
+    }
+}

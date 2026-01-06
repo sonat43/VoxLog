@@ -1,0 +1,90 @@
+.trust-flow-container {
+    display: flex;
+    flex-direction: column;
+    gap: 2rem;
+    position: relative;
+    padding: 1.5rem;
+}
+
+.trust-flow-line {
+    position: absolute;
+    left: 2.85rem;
+    top: 2.5rem;
+    bottom: 2.5rem;
+    width: 2px;
+    background: linear-gradient(to bottom,
+            rgba(6, 182, 212, 0.2),
+            rgba(6, 182, 212, 0.5),
+            rgba(139, 92, 246, 0.2));
+}
+
+.trust-flow-step {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    z-index: 1;
+}
+
+.step-icon-box {
+    position: relative;
+    z-index: 10;
+    flex-shrink: 0;
+    width: 3rem;
+    height: 3rem;
+    border-radius: 0.75rem;
+    background-color: rgba(17, 24, 39, 0.8);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 15px rgba(6, 182, 212, 0.1);
+    transition: all 0.3s ease;
+}
+
+.trust-flow-step:hover .step-icon-box {
+    box-shadow: 0 0 25px rgba(6, 182, 212, 0.3);
+    border-color: rgba(6, 182, 212, 0.4);
+}
+
+.step-icon {
+    width: 1.5rem;
+    height: 1.5rem;
+    color: var(--color-primary);
+    transition: color 0.3s ease;
+}
+
+.trust-flow-step:hover .step-icon {
+    color: #67e8f9;
+    /* Lighter Cyan */
+}
+
+.step-content {
+    display: flex;
+    flex-direction: column;
+    text-align: left;
+}
+
+.step-title {
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.9);
+    transition: color 0.3s ease;
+    margin: 0;
+}
+
+.trust-flow-step:hover .step-title {
+    color: #a5f3fc;
+    /* Cyan-200 */
+}
+
+.step-desc {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+    transition: color 0.3s ease;
+    margin: 0;
+}
+
+.trust-flow-step:hover .step-desc {
+    color: #d1d5db;
+}

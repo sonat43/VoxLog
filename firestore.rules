@@ -1,0 +1,61 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Helper function to check if the user is an Admin
+    // Assumes 'users' collection contains a document with the user's UID and a 'role' field
+    function isAdmin() {
+      return request.auth != null && 
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Admin';
+    }
+    
+    function isAuth() {
+      return request.auth != null;
+    }
+
+    // NEW ACADEMIC MODULES
+    
+    // Departments
+    match /departments/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Courses
+    match /courses/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Semesters
+    match /semesters/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Subjects
+    match /subjects/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+
+    // Faculty Assignments
+    match /faculty_subjects/{docId} {
+      allow read: if isAuth();
+      allow write: if isAdmin();
+    }
+    
+    // EXISTING COLLECTIONS (Basic assumptions to ensure app keeps working)
+    
+    // Users: Users can read profiles, Admin can manage them
+    match /users/{userId} {
+      allow read: if isAuth();
+      allow write: if isAdmin() || request.auth.uid == userId;
+    }
+    
+    // Attendance/Reports (assuming existing collections)
+    match /{path=**} {
+      allow read, write: if request.auth != null; // Fallback for existing dev environment, tighten as needed
+    }
+  }
+}

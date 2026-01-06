@@ -1,0 +1,92 @@
+:root {
+  /* Primary Palette: Admin Dashboard Professional Dark Mode */
+  --color-bg: #0a0f1e;
+  /* Dark Indigo Background - Matches Admin */
+  --color-surface: #111827;
+  /* Gray 900 - Card Surface */
+  --color-primary: #14b8a6;
+  /* Teal 500 - Primary Brand */
+  --color-accent: #06b6d4;
+  /* Cyan 500 - Accents */
+  --color-accent-light: rgba(6, 182, 212, 0.1);
+  /* Low Opacity Accent */
+
+  --color-text-main: #f3f4f6;
+  /* Gray 100 - Main Text */
+  --color-text-muted: #9ca3af;
+  /* Gray 400 - Secondary Text */
+  --color-border: rgba(255, 255, 255, 0.1);
+  /* Subtle Border */
+
+  --color-secondary: #a78bfa;
+  /* Soft Purple - Secondary Brand */
+  --color-error: #f87171;
+  /* Red 400 */
+  --color-success: #34d399;
+  /* Emerald 400 */
+
+  /* Glassmorphism / Shadows */
+  --glass-bg: rgba(17, 24, 39, 0.7);
+  --glass-border: rgba(255, 255, 255, 0.08);
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+
+  color-scheme: dark;
+  color: var(--color-text-main);
+  background-color: var(--color-bg);
+  background-image:
+    radial-gradient(circle at 15% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 25%),
+    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 25%);
+  background-attachment: fixed;
+}
+
+body {
+  margin: 0;
+  display: flex;
+  place-items: center;
+  min-width: 320px;
+  min-height: 100vh;
+}
+
+#root {
+  width: 100%;
+  margin: 0 auto;
+  text-align: center;
+}
+
+/* Animations Helper */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+button {
+  cursor: pointer;
+  transition: all 0.2s ease;
+}

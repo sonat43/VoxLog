@@ -1,7 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { X, Check, AlertTriangle, Loader2 } from 'lucide-react';
 
+import { getDepartments } from '../../services/academicService';
+
 const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
+    const [departments, setDepartments] = useState([]);
     const [formData, setFormData] = useState({
         displayName: '',
         email: '',
@@ -12,6 +15,16 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
+        const fetchDepts = async () => {
+            try {
+                const depts = await getDepartments();
+                setDepartments(depts);
+            } catch (error) {
+                console.error("Failed to fetch departments", error);
+            }
+        };
+        fetchDepts();
+
         if (editingUser) {
             setFormData(editingUser);
         } else {
@@ -167,11 +180,9 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                             style={{ padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #4b5563', background: '#374151', color: 'white', outline: 'none' }}
                         >
                             <option value="">Select Department...</option>
-                            <option value="Computer Science">Computer Science</option>
-                            <option value="Electronics">Electronics</option>
-                            <option value="Mechanical">Mechanical</option>
-                            <option value="Civil">Civil</option>
-                            <option value="Administration">Administration</option>
+                            {departments.map(dept => (
+                                <option key={dept.id} value={dept.name}>{dept.name}</option>
+                            ))}
                         </select>
                     </div>
 

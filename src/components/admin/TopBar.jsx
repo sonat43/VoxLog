@@ -20,10 +20,10 @@ const TopBar = ({ isOpen }) => {
     const getPageTitle = (pathname) => {
         if (pathname.includes('overview')) return 'Dashboard Overview';
         if (pathname.includes('users')) return 'Manage Faculty & Admins';
-        if (pathname.includes('courses')) return 'Manage Courses & Sections';
+
         if (pathname.includes('students')) return 'Manage Students';
         if (pathname.includes('reports')) return 'Attendance Audit & Reports';
-        if (pathname.includes('analytics')) return 'Performance Analytics';
+
         if (pathname.includes('settings')) return 'Settings & Config';
         return 'Admin Dashboard';
     };

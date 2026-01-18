@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
-import { Plus, Trash2, Power, AlertCircle } from 'lucide-react';
-import { getDepartments, addDepartment, updateDepartmentStatus, deleteDepartment } from '../../../services/academicService';
+import { Plus, Trash2, Power, AlertCircle, Edit } from 'lucide-react';
+import { getDepartments, addDepartment, updateDepartmentStatus, deleteDepartment, updateDepartment } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 import ConfirmModal from '../../../components/common/ConfirmModal';
 
@@ -11,6 +11,7 @@ const Departments = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [newDeptName, setNewDeptName] = useState('');
+    const [editingId, setEditingId] = useState(null);
     const [toast, setToast] = useState(null);
     const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
@@ -30,17 +31,35 @@ const Departments = () => {
         fetchData();
     }, []);
 
-    const handleCreate = async (e) => {
+    const handleCreateOrUpdate = async (e) => {
         e.preventDefault();
         try {
-            await addDepartment(newDeptName);
-            setToast({ message: "Department added successfully", type: "success" });
+            if (editingId) {
+                await updateDepartment(editingId, { name: newDeptName });
+                setToast({ message: "Department updated successfully", type: "success" });
+            } else {
+                await addDepartment(newDeptName);
+                setToast({ message: "Department added successfully", type: "success" });
+            }
             setIsModalOpen(false);
             setNewDeptName('');
+            setEditingId(null);
             fetchData();
         } catch (error) {
             setToast({ message: error.message, type: "error" });
         }
+    };
+
+    const startEdit = (dept) => {
+        setNewDeptName(dept.name);
+        setEditingId(dept.id);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setNewDeptName('');
+        setEditingId(null);
     };
 
     const handleToggleStatus = async (dept) => {
@@ -99,18 +118,55 @@ const Departments = () => {
     ];
 
     const renderActions = (row) => (
-        <div style={{ display: 'flex', gap: '0.5rem' }}>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button
+                onClick={() => startEdit(row)}
+                style={{
+                    background: 'rgba(96, 165, 250, 0.1)',
+                    border: '1px solid rgba(96, 165, 250, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#60a5fa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+                title="Edit"
+            >
+                <Edit size={16} />
+            </button>
             <button
                 onClick={() => handleToggleStatus(row)}
+                style={{
+                    background: row.status === 'active' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(16, 185, 129, 0.1)',
+                    border: `1px solid ${row.status === 'active' ? 'rgba(239, 68, 68, 0.2)' : 'rgba(16, 185, 129, 0.2)'}`,
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: row.status === 'active' ? '#ef4444' : '#10b981',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
                 title={row.status === 'active' ? 'Deactivate' : 'Activate'}
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: row.status === 'active' ? '#ef4444' : '#10b981' }}
             >
                 <Power size={16} />
             </button>
             <button
                 onClick={() => handleDelete(row)}
+                style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
                 title="Delete"
-                style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
             >
                 <Trash2 size={16} />
             </button>
@@ -128,12 +184,12 @@ const Departments = () => {
                 title="Department List"
                 columns={columns}
                 data={departments}
-                onAdd={() => setIsModalOpen(true)}
+                onAdd={() => { setEditingId(null); setNewDeptName(''); setIsModalOpen(true); }}
                 renderActions={renderActions}
             />
 
-            <SimpleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Department">
-                <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <SimpleModal isOpen={isModalOpen} onClose={handleCloseModal} title={editingId ? "Edit Department" : "Add Department"}>
+                <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Department Name</label>
                         <input
@@ -145,7 +201,7 @@ const Departments = () => {
                         />
                     </div>
                     <button type="submit" style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#14b8a6', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
-                        Create Department
+                        {editingId ? "Update Department" : "Create Department"}
                     </button>
                 </form>
             </SimpleModal>

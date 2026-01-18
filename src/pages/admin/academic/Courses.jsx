@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
-import { Trash2 } from 'lucide-react';
-import { getCourses, addCourse, deleteCourse, getDepartments } from '../../../services/academicService';
+import { Trash2, Edit } from 'lucide-react';
+import { getCourses, addCourse, deleteCourse, getDepartments, updateCourse } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 import ConfirmModal from '../../../components/common/ConfirmModal';
 
@@ -14,6 +14,7 @@ const Courses = () => {
 
     // Form State
     const [formData, setFormData] = useState({ name: '', departmentId: '', duration: 3 });
+    const [editingId, setEditingId] = useState(null);
 
     const [toast, setToast] = useState(null);
     const [confirmModal, setConfirmModal] = useState({ isOpen: false });
@@ -38,17 +39,41 @@ const Courses = () => {
         fetchData();
     }, []);
 
-    const handleCreate = async (e) => {
+    const handleCreateOrUpdate = async (e) => {
         e.preventDefault();
         try {
-            await addCourse(formData.name, formData.departmentId, formData.duration);
-            setToast({ message: "Course added successfully", type: "success" });
-            setIsModalOpen(false);
-            setFormData({ name: '', departmentId: '', duration: 3 });
+            if (editingId) {
+                await updateCourse(editingId, {
+                    name: formData.name,
+                    departmentId: formData.departmentId,
+                    duration: formData.duration
+                });
+                setToast({ message: "Course updated successfully", type: "success" });
+            } else {
+                await addCourse(formData.name, formData.departmentId, formData.duration);
+                setToast({ message: "Course added successfully", type: "success" });
+            }
+            handleCloseModal();
             fetchData();
         } catch (error) {
             setToast({ message: error.message, type: "error" });
         }
+    };
+
+    const startEdit = (course) => {
+        setFormData({
+            name: course.name,
+            departmentId: course.departmentId,
+            duration: course.duration
+        });
+        setEditingId(course.id);
+        setIsModalOpen(true);
+    };
+
+    const handleCloseModal = () => {
+        setIsModalOpen(false);
+        setFormData({ name: '', departmentId: '', duration: 3 });
+        setEditingId(null);
     };
 
     const handleDelete = (course) => {
@@ -84,12 +109,42 @@ const Courses = () => {
     ];
 
     const renderActions = (row) => (
-        <button
-            onClick={() => handleDelete(row)}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#ef4444' }}
-        >
-            <Trash2 size={16} />
-        </button>
+        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+            <button
+                onClick={() => startEdit(row)}
+                style={{
+                    background: 'rgba(96, 165, 250, 0.1)',
+                    border: '1px solid rgba(96, 165, 250, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#60a5fa',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+                title="Edit"
+            >
+                <Edit size={16} />
+            </button>
+            <button
+                onClick={() => handleDelete(row)}
+                style={{
+                    background: 'rgba(239, 68, 68, 0.1)',
+                    border: '1px solid rgba(239, 68, 68, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#ef4444',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                }}
+                title="Delete"
+            >
+                <Trash2 size={16} />
+            </button>
+        </div>
     );
 
     return (
@@ -103,12 +158,16 @@ const Courses = () => {
                 title="Course List"
                 columns={columns}
                 data={courses}
-                onAdd={() => setIsModalOpen(true)}
+                onAdd={() => {
+                    setEditingId(null);
+                    setFormData({ name: '', departmentId: '', duration: 3 });
+                    setIsModalOpen(true);
+                }}
                 renderActions={renderActions}
             />
 
-            <SimpleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title="Add Course">
-                <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <SimpleModal isOpen={isModalOpen} onClose={handleCloseModal} title={editingId ? "Edit Course" : "Add Course"}>
+                <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Course Name</label>
                         <input
@@ -149,7 +208,7 @@ const Courses = () => {
                     </div>
 
                     <button type="submit" style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#14b8a6', border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer' }}>
-                        Create Course
+                        {editingId ? "Update Course" : "Create Course"}
                     </button>
                 </form>
             </SimpleModal>

@@ -6,13 +6,19 @@ import FacultyDashboard from './pages/FacultyDashboard';
 import LoadingScreen from './components/LoadingScreen';
 import FeaturePlaceholder from './components/FeaturePlaceholder';
 import UserProfile from './pages/UserProfile';
+import FacultyCourses from './pages/faculty/FacultyCourses';
+import FacultyReports from './pages/faculty/Reports';
+import AcademicProgress from './pages/faculty/AcademicProgress';
+import Gradebook from './pages/faculty/Gradebook';
+import ResourceCenter from './pages/faculty/ResourceCenter';
+
 import './App.css';
 
 // Admin Components
 import AdminLayout from './layouts/AdminLayout';
 import DashboardOverview from './pages/admin/DashboardOverview';
 import UserManagement from './pages/admin/UserManagement';
-import Reports from './pages/admin/Reports';
+import AdminReports from './pages/admin/Reports';
 import Departments from './pages/admin/academic/Departments';
 import Courses from './pages/admin/academic/Courses';
 import Semesters from './pages/admin/academic/Semesters';
@@ -58,7 +64,7 @@ function App() {
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<DashboardOverview />} />
             <Route path="users" element={<UserManagement />} />
-            <Route path="reports" element={<Reports />} />
+            <Route path="reports" element={<AdminReports />} />
             {/* Academic Management Routes */}
             <Route path="departments" element={<Departments />} />
             <Route path="academic-courses" element={<Courses />} />
@@ -70,7 +76,6 @@ function App() {
           </Route>
 
           {/* Faculty Dashboard Routes */}
-          {/* Faculty Dashboard Routes */}
           <Route path="/faculty/dashboard" element={
             <ProtectedRoute requiredRole="faculty">
               <FacultyDashboard />
@@ -79,11 +84,13 @@ function App() {
           />
           <Route path="/faculty-dashboard" element={<Navigate to="/faculty/dashboard" replace />} /> {/* Legacy redirect */}
 
-          {/* Faculty Placeholder Routes */}
-          <Route path="/faculty/courses" element={<ProtectedRoute requiredRole="faculty"><FeaturePlaceholder title="My Courses" /></ProtectedRoute>} />
-          <Route path="/faculty/attendance" element={<ProtectedRoute requiredRole="faculty"><FeaturePlaceholder title="Start Attendance" /></ProtectedRoute>} />
-          <Route path="/faculty/history" element={<ProtectedRoute requiredRole="faculty"><FeaturePlaceholder title="Attendance History" /></ProtectedRoute>} />
-          <Route path="/faculty/reports" element={<ProtectedRoute requiredRole="faculty"><FeaturePlaceholder title="Reports" /></ProtectedRoute>} />
+          {/* Faculty Routes */}
+          <Route path="/faculty/courses" element={<ProtectedRoute requiredRole="faculty"><FacultyCourses /></ProtectedRoute>} />
+
+          <Route path="/faculty/academic-progress" element={<ProtectedRoute requiredRole="faculty"><AcademicProgress /></ProtectedRoute>} />
+          <Route path="/faculty/gradebook" element={<ProtectedRoute requiredRole="faculty"><Gradebook /></ProtectedRoute>} />
+          <Route path="/faculty/resources" element={<ProtectedRoute requiredRole="faculty"><ResourceCenter /></ProtectedRoute>} />
+          <Route path="/faculty/reports" element={<ProtectedRoute requiredRole="faculty"><FacultyReports /></ProtectedRoute>} />
           <Route path="/faculty/profile" element={<ProtectedRoute requiredRole="faculty"><UserProfile /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>

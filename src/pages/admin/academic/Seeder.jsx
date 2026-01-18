@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { provisionUser } from '../../../services/adminService';
-import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments } from '../../../services/academicService';
+import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments, getCourses } from '../../../services/academicService';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const Seeder = () => {
@@ -59,6 +59,30 @@ const Seeder = () => {
                     addLog(`❌ Skipping ${c.name}: Missing Department ID for ${c.dept}`);
                 }
             }
+
+            // 3. SEMESTERS (Auto-generate 1-8 for each course)
+            const allCourses = await getCourses(); // Fetch newly created courses
+            for (const course of allCourses) {
+                // Determine duration (default 4 years = 8 semesters if not specified)
+                // Seeder courses have duration, but fetched object might just have data.
+                const duration = course.duration || 4;
+                const totalSemesters = duration * 2;
+
+                for (let i = 1; i <= totalSemesters; i++) {
+                    try {
+                        // We won't assign student count or teacher here to keep it simple, or maybe random?
+                        // Let's keep it basic: just structure.
+                        await addSemester(course.id, i, 60, null); // Default 60 students
+                        // addLog(`  - Added Semester ${i} for ${course.name}`); // Too verbose?
+                    } catch (e) {
+                        // Ignore "already exists" errors to avoid clutter
+                        if (!e.message.includes('already exists')) {
+                            addLog(`⚠️ Sem ${i} for ${course.name}: ${e.message}`);
+                        }
+                    }
+                }
+                addLog(`✅ Verified Semesters (1-${totalSemesters}) for ${course.name}`);
+            } // End Semester Loop
 
             // 3. FACULTY
             const facultyMembers = [

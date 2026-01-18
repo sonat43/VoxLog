@@ -41,6 +41,11 @@ export const updateDepartmentStatus = async (departmentId, newStatus) => {
     await updateDoc(departmentRef, { status: newStatus });
 };
 
+export const updateDepartment = async (departmentId, data) => {
+    const departmentRef = doc(db, "departments", departmentId);
+    await updateDoc(departmentRef, data);
+};
+
 export const deleteDepartment = async (departmentId) => {
     // Check if linked to any courses
     const q = query(collection(db, "courses"), where("departmentId", "==", departmentId));
@@ -64,6 +69,12 @@ export const addCourse = async (name, departmentId, duration) => {
     });
 };
 
+export const updateCourse = async (courseId, data) => {
+    if (data.duration) data.duration = Number(data.duration);
+    const courseRef = doc(db, "courses", courseId);
+    await updateDoc(courseRef, data);
+};
+
 export const getCourses = async () => {
     const querySnapshot = await getDocs(collection(db, "courses"));
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
@@ -84,7 +95,7 @@ export const deleteCourse = async (courseId) => {
 // SEMESTERS
 // ===========================
 
-export const addSemester = async (courseId, semesterNo) => {
+export const addSemester = async (courseId, semesterNo, studentCount, classTeacherId) => {
     const semNo = Number(semesterNo);
     // Check for duplicate semesterNo for the same course
     const q = query(
@@ -99,8 +110,18 @@ export const addSemester = async (courseId, semesterNo) => {
 
     await addDoc(collection(db, "semesters"), {
         courseId,
-        semesterNo: semNo
+        semesterNo: semNo,
+        studentCount: Number(studentCount) || 0,
+        classTeacherId: classTeacherId || null
     });
+};
+
+export const updateSemester = async (semesterId, data) => {
+    if (data.semesterNo) data.semesterNo = Number(data.semesterNo);
+    if (data.studentCount) data.studentCount = Number(data.studentCount);
+
+    const semRef = doc(db, "semesters", semesterId);
+    await updateDoc(semRef, data);
 };
 
 export const getSemesters = async () => {
@@ -140,9 +161,26 @@ export const addSubject = async (code, name, credits, semesterId, courseId) => {
     });
 };
 
+export const updateSubject = async (subjectId, data) => {
+    if (data.credits) data.credits = Number(data.credits);
+    const subRef = doc(db, "subjects", subjectId);
+    await updateDoc(subRef, data);
+};
+
 export const getSubjects = async () => {
     const querySnapshot = await getDocs(collection(db, "subjects"));
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const deleteSubject = async (subjectId) => {
+    // Check if any faculty are assigned to this subject
+    const q = query(collection(db, "faculty_subjects"), where("subjectId", "==", subjectId));
+    const querySnapshot = await getDocs(q);
+    if (!querySnapshot.empty) {
+        throw new Error("Cannot delete subject. It has faculty assigned.");
+    }
+
+    await deleteDoc(doc(db, "subjects", subjectId));
 };
 
 // ===========================
@@ -171,5 +209,17 @@ export const assignFacultyToSubject = async (facultyId, subjectId, academicYear)
 
 export const getFacultyAssignments = async () => {
     const querySnapshot = await getDocs(collection(db, "faculty_subjects"));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getFacultyAssignmentsByFaculty = async (facultyId) => {
+    const q = query(collection(db, "faculty_subjects"), where("facultyId", "==", facultyId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getSemestersByClassTeacher = async (facultyId) => {
+    const q = query(collection(db, "semesters"), where("classTeacherId", "==", facultyId));
+    const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };

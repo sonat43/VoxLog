@@ -21,10 +21,10 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     const navItems = [
         { path: '/admin-dashboard/overview', icon: Home, label: 'Overview' },
         { path: '/admin-dashboard/users', icon: Users, label: 'Manage Faculty & Admins' },
-        { path: '/admin-dashboard/courses', icon: BookOpen, label: 'Manage Courses' },
+
         { path: '/admin-dashboard/students', icon: GraduationCap, label: 'Manage Students' },
         { path: '/admin-dashboard/reports', icon: FileText, label: 'Attendance Audit' },
-        { path: '/admin-dashboard/analytics', icon: BarChart2, label: 'Performance Analytics' },
+
         { path: '/admin-dashboard/settings', icon: Settings, label: 'Settings & Config' },
         // New Academic Structure Modules
         { path: '/admin-dashboard/departments', icon: Layers, label: 'Departments' },

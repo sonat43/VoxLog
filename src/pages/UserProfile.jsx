@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { User, Mail, Building, Save, CheckCircle, AlertCircle, Phone, FileText } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { User, Mail, Building, Save, CheckCircle, AlertCircle, Phone, FileText, Camera, Edit2, X, Star } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { doc, updateDoc } from 'firebase/firestore';
 import { db } from '../services/firebase';
@@ -13,19 +13,22 @@ const UserProfile = () => {
         phone: '',
         department: '',
         bio: '',
-        email: '', // Read only
+        email: '',
     });
     const [isEditing, setIsEditing] = useState(false);
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState(null);
 
+    // Premium Gold Accent Color for "Precious" feel
+    const GOLD_ACCENT = '#fbbf24';
+
     useEffect(() => {
         if (user) {
             setFormData({
                 displayName: user.displayName || '',
-                phone: user.phone || '', // Check if phone exists in user doc
+                phone: user.phone || '',
                 department: user.department || '',
-                bio: user.bio || '', // Check if bio exists
+                bio: user.bio || '',
                 email: user.email || ''
             });
         }
@@ -43,14 +46,15 @@ const UserProfile = () => {
 
         try {
             const userRef = doc(db, 'users', user.uid);
+            // Department is intentionally excluded from update to keep it read-only/admin-assigned
             await updateDoc(userRef, {
                 displayName: formData.displayName,
                 phone: formData.phone,
-                department: formData.department,
                 bio: formData.bio
             });
             setStatus('success');
             setIsEditing(false);
+            setTimeout(() => setStatus(null), 3000);
         } catch (error) {
             console.error("Error updating profile:", error);
             setStatus('error');
@@ -65,262 +69,325 @@ const UserProfile = () => {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.5 }}
-                style={{
-                    maxWidth: '800px',
-                    margin: '0 auto',
-                    paddingBottom: '2rem'
-                }}
+                style={{ maxWidth: '1000px', margin: '0 auto', paddingBottom: '3rem' }}
             >
-                {/* Header */}
-                <div style={{
-                    marginBottom: '2rem',
-                    borderBottom: '1px solid var(--color-border)',
-                    paddingBottom: '1rem',
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center'
-                }}>
-                    <div>
-                        <h1 style={{ fontSize: '1.875rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>
-                            My Profile
-                        </h1>
-                        <p style={{ color: 'var(--color-text-muted)' }}>
-                            Update your photo and personal details here.
-                        </p>
-                    </div>
+                {/* Header Section */}
+                <div style={{ marginBottom: '2.5rem' }}>
+                    <h1 style={{
+                        fontSize: '2.5rem',
+                        fontWeight: 800,
+                        background: 'linear-gradient(to right, #fff, #94a3b8)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        marginBottom: '0.5rem',
+                        letterSpacing: '-0.025em'
+                    }}>
+                        Your Profile
+                    </h1>
+                    <p style={{ color: '#9ca3af', fontSize: '1.1rem' }}>
+                        Verify your identity and manage your personal details.
+                    </p>
                 </div>
 
-                {/* Status Messages */}
-                {status && (
+                <div style={{ display: 'grid', gridTemplateColumns: 'minmax(320px, 1fr) 2fr', gap: '2.5rem', alignItems: 'start' }}>
+
+                    {/* Left Column: Premium Identity Card */}
                     <motion.div
-                        initial={{ opacity: 0, height: 0 }}
-                        animate={{ opacity: 1, height: 'auto' }}
+                        initial={{ opacity: 0, x: -20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.1 }}
                         style={{
-                            background: status === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                            border: `1px solid ${status === 'success' ? 'rgba(16, 185, 129, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
-                            color: status === 'success' ? 'var(--color-success)' : 'var(--color-error)',
-                            padding: '1rem',
-                            borderRadius: '0.5rem',
-                            marginBottom: '1.5rem',
+                            background: 'rgba(30, 41, 59, 0.4)',
+                            borderRadius: '2rem',
+                            border: '1px solid rgba(255, 255, 255, 0.08)',
+                            padding: '3rem 2rem',
                             display: 'flex',
+                            flexDirection: 'column',
                             alignItems: 'center',
-                            gap: '0.5rem'
+                            textAlign: 'center',
+                            backdropFilter: 'blur(40px)',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)',
+                            position: 'relative',
+                            overflow: 'hidden'
                         }}
                     >
-                        {status === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
-                        {status === 'success' ? 'Changes saved successfully.' : 'Failed to save changes.'}
-                    </motion.div>
-                )}
-
-                <div style={{
-                    background: 'var(--color-surface)',
-                    borderRadius: '1rem',
-                    border: '1px solid var(--color-border)',
-                    overflow: 'hidden'
-                }}>
-                    {/* Banner / Cover */}
-                    <div style={{ height: '120px', background: 'linear-gradient(to right, var(--color-primary), var(--color-accent))', opacity: 0.8 }} />
-
-                    <div style={{ padding: '0 2rem 2rem 2rem', position: 'relative' }}>
-                        {/* Avatar Overlay */}
+                        {/* Premium Gradient Overlay */}
                         <div style={{
-                            marginTop: '-40px',
-                            marginBottom: '2rem',
-                            display: 'flex',
-                            justifyContent: 'space-between',
-                            alignItems: 'flex-end'
-                        }}>
-                            <div style={{ display: 'flex', alignItems: 'flex-end', gap: '1.5rem' }}>
+                            position: 'absolute',
+                            top: 0, left: 0, right: 0,
+                            height: '150px',
+                            background: 'linear-gradient(180deg, rgba(234, 179, 8, 0.1) 0%, transparent 100%)',
+                            pointerEvents: 'none'
+                        }} />
+
+                        <div style={{ position: 'relative', marginBottom: '2rem', zIndex: 1 }}>
+                            <div style={{
+                                width: '140px',
+                                height: '140px',
+                                borderRadius: '50%',
+                                padding: '4px',
+                                background: `linear-gradient(135deg, ${GOLD_ACCENT}, #d97706)`,
+                                boxShadow: `0 0 30px rgba(245, 158, 11, 0.4)`
+                            }}>
                                 <div style={{
-                                    width: '96px',
-                                    height: '96px',
+                                    width: '100%',
+                                    height: '100%',
                                     borderRadius: '50%',
-                                    background: '#1f2937',
-                                    border: '4px solid var(--color-surface)',
-                                    color: 'white',
+                                    background: '#0f172a',
                                     display: 'flex',
                                     alignItems: 'center',
                                     justifyContent: 'center',
-                                    fontSize: '2.5rem',
-                                    fontWeight: 700
+                                    fontSize: '3.5rem',
+                                    fontWeight: 800,
+                                    color: 'white',
+                                    overflow: 'hidden'
                                 }}>
+                                    {/* Placeholder for real image or Initials */}
                                     {formData.displayName?.[0]?.toUpperCase() || user?.email?.[0]?.toUpperCase()}
                                 </div>
-                                <div style={{ marginBottom: '0.5rem' }}>
-                                    <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'white', margin: 0 }}>
-                                        {formData.displayName || 'User'}
-                                    </h2>
-                                    <p style={{ color: 'var(--color-text-muted)', margin: 0 }}>
-                                        {formData.email}
-                                    </p>
+                            </div>
+                        </div>
+
+                        <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: 'white', marginBottom: '0.5rem', letterSpacing: '-0.025em' }}>
+                            {formData.displayName || 'Faculty Member'}
+                        </h2>
+                        <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: 'rgba(234, 179, 8, 0.1)',
+                            border: '1px solid rgba(234, 179, 8, 0.2)',
+                            padding: '0.25rem 0.75rem',
+                            borderRadius: '1rem',
+                            color: '#fbbf24',
+                            fontSize: '0.875rem',
+                            fontWeight: 600,
+                            marginBottom: '2rem'
+                        }}>
+                            <Star size={14} fill="currentColor" /> Premium Faculty
+                        </div>
+
+                        <div style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            <div style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                padding: '1rem',
+                                borderRadius: '1rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                textAlign: 'left',
+                                border: '1px solid rgba(255,255,255,0.02)'
+                            }}>
+                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                                    <Building size={20} color="#94a3b8" />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Department</div>
+                                    <div style={{ color: 'white', fontSize: '1rem', fontWeight: 500 }}>{formData.department || 'Unassigned'}</div>
                                 </div>
                             </div>
 
+                            <div style={{
+                                background: 'rgba(255,255,255,0.03)',
+                                padding: '1rem',
+                                borderRadius: '1rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '1rem',
+                                textAlign: 'left',
+                                border: '1px solid rgba(255,255,255,0.02)'
+                            }}>
+                                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '0.5rem', borderRadius: '0.5rem' }}>
+                                    <Mail size={20} color="#94a3b8" />
+                                </div>
+                                <div>
+                                    <div style={{ fontSize: '0.7rem', color: '#64748b', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Email</div>
+                                    <div style={{ color: 'white', fontSize: '1rem', fontWeight: 500 }}>{formData.email}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </motion.div>
+
+                    {/* Right Column: Editable Form */}
+                    <motion.div
+                        initial={{ opacity: 0, x: 20 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 0.2 }}
+                    >
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
                             {!isEditing && (
-                                <button
+                                <motion.button
+                                    whileHover={{ scale: 1.05 }}
+                                    whileTap={{ scale: 0.95 }}
                                     onClick={() => setIsEditing(true)}
                                     style={{
-                                        padding: '0.5rem 1rem',
-                                        background: 'transparent',
-                                        border: '1px solid var(--color-border)',
+                                        padding: '0.75rem 1.5rem',
+                                        background: 'linear-gradient(135deg, var(--color-primary), var(--color-accent))',
                                         color: 'white',
-                                        borderRadius: '0.5rem',
+                                        border: 'none',
+                                        borderRadius: '0.75rem',
+                                        fontWeight: 600,
                                         cursor: 'pointer',
-                                        fontSize: '0.875rem',
-                                        fontWeight: 500,
-                                        marginBottom: '0.5rem'
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.5rem',
+                                        boxShadow: '0 4px 15px rgba(139, 92, 246, 0.4)'
                                     }}
                                 >
-                                    Edit Profile
-                                </button>
+                                    <Edit2 size={16} /> Edit Profile
+                                </motion.button>
                             )}
                         </div>
 
-                        {/* Form Section */}
-                        <form onSubmit={handleSubmit}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1.5rem' }}>
-                                {/* Personal Info Section */}
-                                <div style={{ gridColumn: 'span 2' }}>
-                                    <h4 style={{ color: 'white', margin: '0 0 1rem 0', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>
-                                        Personal Information
-                                    </h4>
-                                </div>
+                        {/* Status Message */}
+                        <AnimatePresence>
+                            {status && (
+                                <motion.div
+                                    initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                    animate={{ opacity: 1, height: 'auto', marginBottom: '1.5rem' }}
+                                    exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                                    style={{
+                                        background: status === 'success' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                        border: `1px solid ${status === 'success' ? '#059669' : '#dc2626'}`,
+                                        color: status === 'success' ? '#34d399' : '#f87171',
+                                        padding: '1rem',
+                                        borderRadius: '0.75rem',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        gap: '0.75rem'
+                                    }}
+                                >
+                                    {status === 'success' ? <CheckCircle size={20} /> : <AlertCircle size={20} />}
+                                    <span style={{ fontWeight: 500 }}>{status === 'success' ? 'Profile updated successfully.' : 'Failed to save changes.'}</span>
+                                </motion.div>
+                            )}
+                        </AnimatePresence>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>Display Name</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <User size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#6b7280' }} />
+                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '2rem' }}>
+                            <section>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                                    Personal Details
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                                    {/* Display Name Input */}
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#94a3b8', marginBottom: '0.5rem' }}>Full Name</label>
                                         <input
                                             type="text"
                                             name="displayName"
                                             value={formData.displayName}
                                             onChange={handleChange}
                                             disabled={!isEditing}
-                                            placeholder="Your full name"
+                                            placeholder="John Doe"
                                             style={{
                                                 width: '100%',
-                                                padding: '0.75rem 1rem 0.75rem 2.75rem',
-                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'transparent',
-                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                                borderRadius: '0.5rem',
+                                                padding: '1rem',
+                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.02)',
+                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                                borderRadius: '0.75rem',
                                                 color: 'white',
-                                                outline: 'none'
+                                                fontSize: '1rem',
+                                                transition: 'all 0.2s'
                                             }}
                                         />
                                     </div>
-                                </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>Phone Number</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <Phone size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#6b7280' }} />
+                                    {/* Phone Input */}
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#94a3b8', marginBottom: '0.5rem' }}>Phone</label>
                                         <input
                                             type="text"
                                             name="phone"
                                             value={formData.phone}
                                             onChange={handleChange}
                                             disabled={!isEditing}
-                                            placeholder="+1 (555) 000-0000"
+                                            placeholder="+1 (555) 555-5555"
                                             style={{
                                                 width: '100%',
-                                                padding: '0.75rem 1rem 0.75rem 2.75rem',
-                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'transparent',
-                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                                borderRadius: '0.5rem',
+                                                padding: '1rem',
+                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.02)',
+                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                                borderRadius: '0.75rem',
                                                 color: 'white',
-                                                outline: 'none'
+                                                fontSize: '1rem',
+                                                transition: 'all 0.2s'
                                             }}
                                         />
                                     </div>
-                                </div>
 
-                                <div style={{ gridColumn: 'span 2', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>Bio / About</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <FileText size={18} style={{ position: 'absolute', left: '1rem', top: '1rem', color: '#6b7280' }} />
+                                    {/* Bio Input */}
+                                    <div style={{ gridColumn: 'span 2' }}>
+                                        <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#94a3b8', marginBottom: '0.5rem' }}>Professional Bio</label>
                                         <textarea
                                             name="bio"
                                             value={formData.bio}
                                             onChange={handleChange}
                                             disabled={!isEditing}
-                                            rows="3"
-                                            placeholder="Tell us a little bit about yourself..."
+                                            rows="4"
+                                            placeholder="Share your expertise and background..."
                                             style={{
                                                 width: '100%',
-                                                padding: '0.75rem 1rem 0.75rem 2.75rem',
-                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'transparent',
-                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                                borderRadius: '0.5rem',
+                                                padding: '1rem',
+                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'rgba(255,255,255,0.02)',
+                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid rgba(255,255,255,0.05)',
+                                                borderRadius: '0.75rem',
                                                 color: 'white',
-                                                outline: 'none',
-                                                resize: 'none',
-                                                fontFamily: 'inherit'
+                                                fontSize: '1rem',
+                                                fontFamily: 'inherit',
+                                                resize: 'vertical',
+                                                transition: 'all 0.2s'
                                             }}
                                         />
                                     </div>
                                 </div>
+                            </section>
 
-                                {/* Academic Info Section */}
-                                <div style={{ gridColumn: 'span 2', marginTop: '1rem' }}>
-                                    <h4 style={{ color: 'white', margin: '0 0 1rem 0', paddingBottom: '0.5rem', borderBottom: '1px solid var(--color-border)' }}>
-                                        Academic Credentials
-                                    </h4>
-                                </div>
-
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>Department</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <Building size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#6b7280' }} />
-                                        <input
-                                            type="text"
-                                            name="department"
-                                            value={formData.department}
-                                            onChange={handleChange}
-                                            disabled={!isEditing}
-                                            placeholder="e.g. Computer Science"
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.75rem 1rem 0.75rem 2.75rem',
-                                                background: isEditing ? 'rgba(0,0,0,0.2)' : 'transparent',
-                                                border: isEditing ? '1px solid var(--color-primary)' : '1px solid var(--color-border)',
-                                                borderRadius: '0.5rem',
-                                                color: 'white',
-                                                outline: 'none'
-                                            }}
-                                        />
+                            <section>
+                                <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: 'white', marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '0.5rem' }}>
+                                    System Information
+                                </h3>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '1.5rem' }}>
+                                    {/* Department - READ ONLY */}
+                                    <div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                            <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 500, color: '#94a3b8' }}>Department</label>
+                                            <span style={{ fontSize: '0.75rem', color: GOLD_ACCENT, display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                                                <Star size={12} fill="currentColor" /> Admin Assigned
+                                            </span>
+                                        </div>
+                                        <div style={{
+                                            width: '100%',
+                                            padding: '1rem',
+                                            background: 'rgba(234, 179, 8, 0.05)',
+                                            border: '1px solid rgba(234, 179, 8, 0.1)',
+                                            borderRadius: '0.75rem',
+                                            color: '#fbbf24', // Gold text
+                                            fontSize: '1rem',
+                                            fontWeight: 600,
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            <Building size={18} /> {formData.department || 'Not Assigned'}
+                                        </div>
+                                        <p style={{ marginTop: '0.5rem', fontSize: '0.75rem', color: '#64748b' }}>
+                                            Department assignment can only be changed by system administrators.
+                                        </p>
                                     </div>
                                 </div>
+                            </section>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                    <label style={{ fontSize: '0.875rem', fontWeight: 500, color: 'var(--color-text-muted)' }}>Email Address</label>
-                                    <div style={{ position: 'relative' }}>
-                                        <Mail size={18} style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#6b7280' }} />
-                                        <input
-                                            type="email"
-                                            value={formData.email}
-                                            disabled
-                                            style={{
-                                                width: '100%',
-                                                padding: '0.75rem 1rem 0.75rem 2.75rem',
-                                                background: 'rgba(255,255,255,0.02)', // Visibly disabled
-                                                border: '1px solid var(--color-border)',
-                                                borderRadius: '0.5rem',
-                                                color: 'var(--color-text-muted)',
-                                                cursor: 'not-allowed'
-                                            }}
-                                        />
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Action Buttons */}
                             {isEditing && (
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--color-border)' }}>
+                                <motion.div
+                                    initial={{ opacity: 0, y: 10 }}
+                                    animate={{ opacity: 1, y: 0 }}
+                                    style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem', paddingTop: '1rem' }}
+                                >
                                     <button
                                         type="button"
                                         onClick={() => {
                                             setIsEditing(false);
-                                            // Reset to initial values
+                                            // Reset
                                             setFormData({
                                                 displayName: user.displayName || '',
                                                 phone: user.phone || '',
@@ -331,11 +398,11 @@ const UserProfile = () => {
                                         }}
                                         disabled={loading}
                                         style={{
-                                            padding: '0.625rem 1.25rem',
+                                            padding: '0.875rem 1.5rem',
                                             background: 'transparent',
-                                            border: '1px solid var(--color-border)',
-                                            color: 'var(--color-text-muted)',
-                                            borderRadius: '0.5rem',
+                                            border: '1px solid rgba(255,255,255,0.2)',
+                                            color: '#94a3b8',
+                                            borderRadius: '0.75rem',
                                             cursor: 'pointer',
                                             fontWeight: 600
                                         }}
@@ -346,16 +413,17 @@ const UserProfile = () => {
                                         type="submit"
                                         disabled={loading}
                                         style={{
-                                            padding: '0.625rem 1.25rem',
-                                            background: 'var(--color-primary)',
+                                            padding: '0.875rem 2.5rem',
+                                            background: `linear-gradient(135deg, ${GOLD_ACCENT}, #d97706)`,
                                             border: 'none',
                                             color: 'white',
-                                            borderRadius: '0.5rem',
+                                            borderRadius: '0.75rem',
                                             cursor: loading ? 'wait' : 'pointer',
-                                            fontWeight: 600,
+                                            fontWeight: 700,
                                             display: 'flex',
                                             alignItems: 'center',
-                                            gap: '0.5rem'
+                                            gap: '0.5rem',
+                                            boxShadow: '0 4px 15px rgba(245, 158, 11, 0.3)'
                                         }}
                                     >
                                         {loading ? 'Saving...' : (
@@ -364,10 +432,10 @@ const UserProfile = () => {
                                             </>
                                         )}
                                     </button>
-                                </div>
+                                </motion.div>
                             )}
                         </form>
-                    </div>
+                    </motion.div>
                 </div>
             </motion.div>
         </DashboardLayout>

@@ -14,7 +14,8 @@ import {
     Book,
     Calendar,
     Library,
-    UserCheck
+    UserCheck,
+    Clock
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -32,6 +33,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { path: '/admin-dashboard/semesters', icon: Calendar, label: 'Semesters' },
         { path: '/admin-dashboard/subjects', icon: Library, label: 'Subjects' },
         { path: '/admin-dashboard/assignments', icon: UserCheck, label: 'Faculty Assignment' },
+        { path: '/admin-dashboard/academic-timetable', icon: Clock, label: 'Class Timetable' },
     ];
 
     return (

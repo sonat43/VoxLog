@@ -43,8 +43,8 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
-        // Simulate API delay
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Simulate API delay - REMOVED for better performance
+        // await new Promise(resolve => setTimeout(resolve, 1000));
         onSubmit(formData);
         setLoading(false);
     };

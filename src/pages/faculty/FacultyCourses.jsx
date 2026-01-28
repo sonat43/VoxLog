@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { AnimatePresence } from 'framer-motion';
+import AttendanceModal from '../../components/dashboard/AttendanceModal';
 import DashboardLayout from '../../layouts/DashboardLayout';
 import CourseCard from '../../components/dashboard/CourseCard';
 import LoadingScreen from '../../components/LoadingScreen';
@@ -10,6 +12,7 @@ import {
     getCourses,
     getSemestersByClassTeacher
 } from '../../services/academicService';
+import { getTimetable } from '../../services/timetableService';
 import { BookOpen, Users } from 'lucide-react';
 
 const FacultyCourses = () => {
@@ -17,6 +20,10 @@ const FacultyCourses = () => {
     const [loading, setLoading] = useState(true);
     const [myCourses, setMyCourses] = useState([]);
     const [myManagedClasses, setMyManagedClasses] = useState([]);
+    const [timetables, setTimetables] = useState({});
+    const [activeSubjectIds, setActiveSubjectIds] = useState([]);
+    const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+    const [selectedCourseForAttendance, setSelectedCourseForAttendance] = useState(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -57,13 +64,28 @@ const FacultyCourses = () => {
                         courseName: subject.name,
                         // If we have semester info, show it
                         section: semester ? `Sem ${semester.semesterNo}` : 'N/A',
+                        semesterId: semester ? semester.id : null,
                         studentCount: semester ? semester.studentCount : 0,
-                        status: 'active', // Defaulting to active for now
-                        programName: course ? course.name : 'Unknown Program'
+                        status: 'inactive', // Defaulting to inactive, will verify with timetable
+                        programName: course ? course.name : 'Unknown Program',
+                        code: subject.code, // For modal
+                        name: subject.name, // For modal
+                        sectionCode: semester ? `Sem ${semester.semesterNo}` : 'N/A' // For modal
                     };
                 }).filter(item => item !== null);
 
                 setMyCourses(processedCourses);
+
+                // Fetch Timetables for relevant semesters
+                const uniqueSemesterIds = [...new Set(processedCourses.map(c => c.semesterId).filter(Boolean))];
+                const timetableMap = {};
+                await Promise.all(uniqueSemesterIds.map(async (semId) => {
+                    const schedule = await getTimetable(semId);
+                    if (schedule) {
+                        timetableMap[semId] = schedule;
+                    }
+                }));
+                setTimetables(timetableMap);
 
                 // Process "My Class" (Classes I am a Class Teacher for)
                 const processedManagedClasses = managedSemesters.map(semester => {
@@ -88,6 +110,61 @@ const FacultyCourses = () => {
 
         fetchData();
     }, [user]);
+
+    // Check for active sessions based on timetable
+    useEffect(() => {
+        const checkActiveSessions = () => {
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const currentDay = days[now.getDay()];
+
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const currentTimeVal = currentHour * 60 + currentMinute;
+
+            const activeIds = [];
+
+            myCourses.forEach(course => {
+                if (!course.semesterId || !timetables[course.semesterId]) return;
+
+                const daySchedule = timetables[course.semesterId][currentDay];
+                if (!daySchedule) return;
+
+                // Check each slot
+                daySchedule.forEach(slot => {
+                    // slot.timeRange format: "09:00 - 10:00"
+                    const [startStr, endStr] = slot.timeRange.split(' - ');
+
+                    const [startH, startM] = startStr.split(':').map(Number);
+                    const [endH, endM] = endStr.split(':').map(Number);
+
+                    const startTimeVal = startH * 60 + startM;
+                    const endTimeVal = endH * 60 + endM;
+
+                    if (currentTimeVal >= startTimeVal && currentTimeVal < endTimeVal) {
+                        // Time matches, check subject
+                        if (slot.subjectId === course.subjectId) {
+                            activeIds.push(course.subjectId);
+                        }
+                    }
+                });
+            });
+
+            setActiveSubjectIds(activeIds);
+        };
+
+        // Run immediately and then every minute
+        checkActiveSessions();
+        const interval = setInterval(checkActiveSessions, 60000); // 1 minute
+
+        return () => clearInterval(interval);
+    }, [myCourses, timetables]);
+
+    const handleTakeAttendance = (course) => {
+        // Ensure the course object passed to modal has active status so it appears
+        setSelectedCourseForAttendance({ ...course, status: 'active' });
+        setShowAttendanceModal(true);
+    };
 
     if (loading) {
         return <LoadingScreen />;
@@ -168,17 +245,25 @@ const FacultyCourses = () => {
                                     courseName={course.courseName}
                                     section={course.section}
                                     studentCount={course.studentCount}
-                                    status={course.status}
-                                    onAction={() => {
-                                        // Placeholder for future action (e.g. go to attendance)
-                                        console.log("Action on course", course);
-                                    }}
+                                    status={activeSubjectIds.includes(course.subjectId) ? 'active' : 'inactive'}
+                                    onAction={() => handleTakeAttendance(course)}
                                 />
                             ))}
                         </div>
                     )}
                 </section>
             </div>
+
+            {/* Attendance Modal */}
+            <AnimatePresence>
+                {showAttendanceModal && selectedCourseForAttendance && (
+                    <AttendanceModal
+                        isOpen={showAttendanceModal}
+                        onClose={() => setShowAttendanceModal(false)}
+                        courses={[selectedCourseForAttendance]} // Pass as array as modal expects list but checking flow
+                    />
+                )}
+            </AnimatePresence>
         </DashboardLayout>
     );
 };

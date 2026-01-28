@@ -82,16 +82,26 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, onA
                     style={{
                         width: '100%',
                         padding: '0.75rem',
-                        background: isActive ? 'var(--color-primary)' : 'var(--color-border)',
+                        background: isActive ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
                         color: isActive ? 'white' : 'var(--color-text-muted)',
-                        border: 'none',
+                        border: isActive ? 'none' : '1px solid var(--color-border)',
                         borderRadius: '0.5rem',
                         fontWeight: 600,
                         cursor: isActive ? 'pointer' : 'not-allowed',
-                        transition: 'background 0.2s'
+                        transition: 'background 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.5rem'
                     }}
                 >
-                    {isActive ? 'Manage / Attendance' : 'Course Locked'}
+                    {isActive ? (
+                        <>
+                            <Clock size={16} /> Take Attendance
+                        </>
+                    ) : (
+                        'Not Scheduled Now'
+                    )}
                 </button>
             </div>
         </motion.div>

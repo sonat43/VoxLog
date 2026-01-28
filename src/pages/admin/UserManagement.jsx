@@ -45,10 +45,10 @@ const UserManagement = () => {
     // Filtering Logic
     const getFilteredUsers = () => {
         switch (activeTab) {
-            case 'Faculty': return users.filter(u => u.role === 'Faculty');
-            case 'Admins': return users.filter(u => u.role === 'Admin');
-            case 'Active': return users.filter(u => u.status === 'Active');
-            case 'Disabled': return users.filter(u => u.status === 'Disabled');
+            case 'Faculty': return users.filter(u => (u.role || '').toLowerCase() === 'faculty');
+            case 'Admins': return users.filter(u => (u.role || '').toLowerCase() === 'admin');
+            case 'Active': return users.filter(u => (u.status || '').toLowerCase() === 'active');
+            case 'Disabled': return users.filter(u => (u.status || '').toLowerCase() === 'disabled');
             default: return users;
         }
     };
@@ -87,9 +87,9 @@ const UserManagement = () => {
                 // Optimistically update UI
                 const newUser = {
                     id: result.uid,
-                    name: formData.displayName,
+                    displayName: formData.displayName,
                     email: formData.email,
-                    item_dept: formData.department,
+                    department: formData.department,
                     role: formData.role === 'admin' ? 'Admin' : 'Faculty',
                     status: formData.status === 'active' ? 'Active' : 'Disabled',
                     assignedClasses: 0,
@@ -233,7 +233,7 @@ const UserManagement = () => {
     ];
 
     const renderActions = (row) => (
-        <div style={{ position: 'relative' }}>
+        <div style={{ position: 'relative', display: 'flex', justifyContent: 'flex-end' }}>
             <button
                 onClick={(e) => { e.stopPropagation(); setOpenMenuId(openMenuId === row.id ? null : row.id); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#9ca3af', padding: '0.25rem' }}
@@ -299,10 +299,10 @@ const UserManagement = () => {
                         }}>
                             {/* Mock Counts based on filter logic */}
                             {tab === 'All Users' ? users.length :
-                                tab === 'Faculty' ? users.filter(u => u.role === 'Faculty').length :
-                                    tab === 'Admins' ? users.filter(u => u.role === 'Admin').length :
-                                        tab === 'Active' ? users.filter(u => u.status === 'Active').length :
-                                            users.filter(u => u.status === 'Disabled').length}
+                                tab === 'Faculty' ? users.filter(u => (u.role || '').toLowerCase() === 'faculty').length :
+                                    tab === 'Admins' ? users.filter(u => (u.role || '').toLowerCase() === 'admin').length :
+                                        tab === 'Active' ? users.filter(u => (u.status || '').toLowerCase() === 'active').length :
+                                            users.filter(u => (u.status || '').toLowerCase() === 'disabled').length}
                         </span>
                     </button>
                 ))}

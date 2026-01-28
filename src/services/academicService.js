@@ -223,3 +223,69 @@ export const getSemestersByClassTeacher = async (facultyId) => {
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
+
+// ===========================
+// STUDENTS
+// ===========================
+
+export const addStudent = async (data) => {
+    // 1. Check Capacity
+    const semRef = doc(db, "semesters", data.semesterId);
+    const semSnap = await getDoc(semRef);
+
+    if (!semSnap.exists()) {
+        throw new Error("Semester not found.");
+    }
+
+    const semesterData = semSnap.data();
+    const capacity = semesterData.studentCount || 0; // Total allowed
+
+    // Count current students
+    const qCount = query(collection(db, "students"), where("semesterId", "==", data.semesterId));
+    const countSnap = await getDocs(qCount);
+    const currentEnrollment = countSnap.size;
+
+    if (currentEnrollment >= capacity) {
+        throw new Error(`Class Full! Capacity is ${capacity} students. Cannot add more.`);
+    }
+
+    // 2. Check for duplicate Reg No
+    const qReg = query(collection(db, "students"), where("regNo", "==", data.regNo));
+    const regSnap = await getDocs(qReg);
+    if (!regSnap.empty) {
+        throw new Error(`Student with Register No '${data.regNo}' already exists.`);
+    }
+
+    // 3. Check for duplicate Email
+    const qEmail = query(collection(db, "students"), where("email", "==", data.email));
+    const emailSnap = await getDocs(qEmail);
+    if (!emailSnap.empty) {
+        throw new Error(`Student with Email '${data.email}' already exists.`);
+    }
+
+    // 4. Add Student
+    await addDoc(collection(db, "students"), {
+        ...data,
+        createdAt: serverTimestamp()
+    });
+};
+
+export const getStudentsBySemester = async (semesterId) => {
+    const q = query(collection(db, "students"), where("semesterId", "==", semesterId));
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const deleteStudent = async (studentId) => {
+    await deleteDoc(doc(db, "students", studentId));
+};
+
+export const updateStudent = async (studentId, data) => {
+    const studentRef = doc(db, "students", studentId);
+    await updateDoc(studentRef, data);
+};
+
+export const getAllStudents = async () => {
+    const querySnapshot = await getDocs(collection(db, "students"));
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};

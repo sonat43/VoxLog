@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
 import { Search, ChevronLeft, ChevronRight, MoreVertical } from 'lucide-react';
 
-const DataTable = ({ title, columns, data, onSearch, onAdd, renderActions }) => {
+const DataTable = ({ title, columns, data, onSearch, onAdd, renderActions, itemsPerPage = 5 }) => {
     const [searchTerm, setSearchTerm] = useState('');
     const [currentPage, setCurrentPage] = useState(1);
-    const itemsPerPage = 5;
+    // const itemsPerPage = 5; // Removed hardcoded value
 
     // Filter Logic (Simple client-side)
     const filteredData = data.filter(item =>

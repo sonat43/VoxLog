@@ -106,7 +106,7 @@ const TopBar = ({ isOpen }) => {
 
                 {/* Profile */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ textAlign: 'right', display: 'none', '@media (min-width: 768px)': { display: 'block' } }}>
+                    <div style={{ textAlign: 'right', display: 'block' }}>
                         <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>{user?.displayName || 'Admin User'}</div>
                         <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Administrator</div>
                     </div>

@@ -80,13 +80,31 @@ export const provisionUser = async (data) => {
  */
 export const fetchAllUsers = async () => {
     try {
-        console.log("Fetching all users from Firestore 'users' collection...");
-        const querySnapshot = await getDocs(collection(db, "users"));
-        const users = [];
-        querySnapshot.forEach((doc) => {
-            console.log("Found user doc:", doc.id, doc.data());
-            users.push({ id: doc.id, ...doc.data() });
+        console.log("Fetching all users and assignments...");
+        const [usersSnap, assignmentsSnap] = await Promise.all([
+            getDocs(collection(db, "users")),
+            getDocs(collection(db, "faculty_subjects"))
+        ]);
+
+        // Calculate assignment counts
+        const assignmentCounts = {};
+        assignmentsSnap.forEach(doc => {
+            const data = doc.data();
+            if (data.facultyId) {
+                assignmentCounts[data.facultyId] = (assignmentCounts[data.facultyId] || 0) + 1;
+            }
         });
+
+        const users = [];
+        usersSnap.forEach((doc) => {
+            const userData = doc.data();
+            users.push({
+                id: doc.id,
+                ...userData,
+                assignedClasses: assignmentCounts[doc.id] || 0 // Use dynamic count or 0
+            });
+        });
+
         console.log("Total users fetched:", users.length);
         return users;
     } catch (error) {

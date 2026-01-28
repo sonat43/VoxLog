@@ -24,7 +24,10 @@ import Courses from './pages/admin/academic/Courses';
 import Semesters from './pages/admin/academic/Semesters';
 import Subjects from './pages/admin/academic/Subjects';
 import FacultyAssignments from './pages/admin/academic/FacultyAssignments';
+import SettingsConfig from './pages/admin/SettingsConfig';
 import Seeder from './pages/admin/academic/Seeder';
+import Students from './pages/admin/academic/Students';
+import Timetable from './pages/admin/academic/Timetable';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -71,6 +74,9 @@ function App() {
             <Route path="semesters" element={<Semesters />} />
             <Route path="subjects" element={<Subjects />} />
             <Route path="assignments" element={<FacultyAssignments />} />
+            <Route path="students" element={<Students />} />
+            <Route path="academic-timetable" element={<Timetable />} />
+            <Route path="settings" element={<SettingsConfig />} />
             <Route path="seed" element={<Seeder />} />
             <Route path="*" element={<div style={{ padding: '2rem', color: 'white' }}>Page Under Construction</div>} />
           </Route>

@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
+import { getTimetable } from '../services/timetableService';
+import AttendanceModal from '../components/dashboard/AttendanceModal';
 import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getMySubjects, getAtRiskStudents } from '../services/facultyService';
@@ -13,6 +15,9 @@ const FacultyDashboard = () => {
     const [subjects, setSubjects] = useState([]);
     const [atRiskCount, setAtRiskCount] = useState(0);
     const [loading, setLoading] = useState(true);
+    const [currentSession, setCurrentSession] = useState(null);
+    const [timetables, setTimetables] = useState({});
+    const [showAttendanceModal, setShowAttendanceModal] = useState(false);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -23,10 +28,19 @@ const FacultyDashboard = () => {
                     setSubjects(mySubjects);
 
                     // 2. Mock KPI calculations or fetch for demo
-                    // In real app, we'd aggregate this from all subjects
-                    // const risks = await getAtRiskStudents(mySubjects[0]?.id); 
-                    // setAtRiskCount(risks.length);
                     setAtRiskCount(3); // Mock for Early Warning Demo
+
+                    // 3. Fetch Timetables for "Live" check
+                    const uniqueSemesterIds = [...new Set(mySubjects.map(s => s.semesterId).filter(Boolean))];
+                    const timetableMap = {};
+                    await Promise.all(uniqueSemesterIds.map(async (semId) => {
+                        const schedule = await getTimetable(semId);
+                        if (schedule) {
+                            timetableMap[semId] = schedule;
+                        }
+                    }));
+                    setTimetables(timetableMap);
+
                 } catch (error) {
                     console.error("Dashboard data error", error);
                 } finally {
@@ -36,6 +50,45 @@ const FacultyDashboard = () => {
         };
         fetchDashboardData();
     }, [user]);
+
+    // Live Session Check
+    useEffect(() => {
+        const checkLiveSession = () => {
+            const now = new Date();
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const currentDay = days[now.getDay()];
+            const currentHour = now.getHours();
+            const currentMinute = now.getMinutes();
+            const currentTimeVal = currentHour * 60 + currentMinute;
+
+            let foundSession = null;
+
+            subjects.forEach(subject => {
+                if (!subject.semesterId || !timetables[subject.semesterId]) return;
+                const daySchedule = timetables[subject.semesterId][currentDay];
+                if (!daySchedule) return;
+
+                daySchedule.forEach(slot => {
+                    const [startStr, endStr] = slot.timeRange.split(' - ');
+                    const [startH, startM] = startStr.split(':').map(Number);
+                    const [endH, endM] = endStr.split(':').map(Number);
+                    const startTimeVal = startH * 60 + startM;
+                    const endTimeVal = endH * 60 + endM;
+
+                    if (currentTimeVal >= startTimeVal && currentTimeVal < endTimeVal) {
+                        if (slot.subjectId === subject.id) {
+                            foundSession = { ...subject, timeRange: slot.timeRange };
+                        }
+                    }
+                });
+            });
+            setCurrentSession(foundSession);
+        };
+
+        checkLiveSession();
+        const interval = setInterval(checkLiveSession, 60000);
+        return () => clearInterval(interval);
+    }, [subjects, timetables]);
 
     const stats = [
         { title: 'My Courses', value: subjects.length.toString(), icon: Book, color: '#14b8a6' },
@@ -88,6 +141,63 @@ const FacultyDashboard = () => {
                         filter: 'blur(50px)'
                     }} />
                 </div>
+
+                {/* Live Session Alert */}
+                {currentSession && (
+                    <motion.div
+                        initial={{ opacity: 0, y: -10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        style={{
+                            background: 'linear-gradient(to right, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1))',
+                            border: '1px solid rgba(16, 185, 129, 0.3)',
+                            borderRadius: '1rem',
+                            padding: '1.5rem',
+                            marginBottom: '2rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between'
+                        }}
+                    >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{
+                                width: '50px', height: '50px',
+                                background: 'rgba(16, 185, 129, 0.2)',
+                                borderRadius: '50%',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                animation: 'pulse 2s infinite'
+                            }}>
+                                <Users size={24} color="#34d399" />
+                            </div>
+                            <div>
+                                <div style={{ color: '#34d399', fontWeight: 700, fontSize: '0.875rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                    Happening Now
+                                </div>
+                                <h2 style={{ color: 'white', fontSize: '1.25rem', fontWeight: 600, margin: '0.25rem 0' }}>
+                                    {currentSession.name} ({currentSession.code})
+                                </h2>
+                                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>
+                                    {currentSession.timeRange} • Semester {currentSession.semesterNo || 'N/A'}
+                                </div>
+                            </div>
+                        </div>
+                        <button
+                            onClick={() => setShowAttendanceModal(true)}
+                            style={{
+                                background: '#10b981',
+                                border: 'none',
+                                borderRadius: '0.75rem',
+                                padding: '0.75rem 1.5rem',
+                                color: 'white',
+                                fontWeight: 600,
+                                fontSize: '1rem',
+                                cursor: 'pointer',
+                                boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                            }}
+                        >
+                            Take Attendance
+                        </button>
+                    </motion.div>
+                )}
 
                 {/* KPI Grid */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem', marginBottom: '3rem' }}>
@@ -183,6 +293,17 @@ const FacultyDashboard = () => {
 
                 </div>
             </motion.div>
+
+            {/* Attendance Modal */}
+            <AnimatePresence>
+                {showAttendanceModal && currentSession && (
+                    <AttendanceModal
+                        isOpen={showAttendanceModal}
+                        onClose={() => setShowAttendanceModal(false)}
+                        courses={[{ ...currentSession, status: 'active' }]}
+                    />
+                )}
+            </AnimatePresence>
         </DashboardLayout>
     );
 };

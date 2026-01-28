@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { signInWithEmailAndPassword, sendPasswordResetEmail } from 'firebase/auth';
 import { auth } from '../services/firebase';
+import { useAuth } from '../context/AuthContext';
 import { Loader2, Lock, Mail, ArrowRight, ArrowLeft } from 'lucide-react';
 import './LoginCard.css';
 
@@ -11,6 +12,17 @@ const LoginCard = () => {
     const [error, setError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const [isResetMode, setIsResetMode] = useState(false);
+
+    // Global Auth Error Handling
+    const { error: authError } = useAuth();
+
+    // Watch for global auth errors (e.g., account disabled/deleted after login attempt)
+    React.useEffect(() => {
+        if (authError) {
+            setError(authError);
+            setLoading(false);
+        }
+    }, [authError]);
 
     const handleLogin = async (e) => {
         e.preventDefault();

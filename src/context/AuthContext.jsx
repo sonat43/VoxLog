@@ -28,7 +28,7 @@ export function AuthProvider({ children }) {
                 setUser(null);
                 setRole(null);
             } else {
-                setLoading(true); // Ensure loading is true while fetching profile
+                setLoading(true);
                 setError('');
                 try {
                     const userDocRef = doc(db, 'users', currentUser.uid);
@@ -36,18 +36,24 @@ export function AuthProvider({ children }) {
 
                     if (userDoc.exists()) {
                         const userData = userDoc.data();
+
+                        // Check if account is active
+                        if (userData.status === 'disabled' || userData.status === 'Disabled') {
+                            throw new Error("Your account has been disabled by the administrator.");
+                        }
+
                         setRole(userData.role);
                         setUser({ ...currentUser, ...userData });
                     } else {
-                        setRole(null);
-                        setUser(currentUser);
-                        setError('Access Denied. No user profile found.');
+                        // Profile deleted
+                        throw new Error("Access Denied. User profile not found.");
                     }
                 } catch (err) {
-                    console.error("Error fetching user role:", err);
-                    setError('Failed to fetch user permissions.');
+                    console.error("Auth Validation Error:", err);
+                    await firebaseSignOut(auth); // Force Logout
+                    setUser(null);
                     setRole(null);
-                    setUser(currentUser);
+                    setError(err.message);
                 }
             }
             // Always turn off loading after check

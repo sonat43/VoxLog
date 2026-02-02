@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, AreaChart, Area } from 'recharts';
 import { Activity, Users, Clock, Calendar, Download, Filter, ChevronDown } from 'lucide-react';
-import DashboardLayout from '../../layouts/DashboardLayout';
+
 
 const Reports = () => {
     // Mock Data
@@ -24,7 +24,7 @@ const Reports = () => {
     ];
 
     return (
-        <DashboardLayout>
+        <>
             <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -239,7 +239,7 @@ const Reports = () => {
                 </div>
 
             </motion.div>
-        </DashboardLayout>
+        </>
     );
 };
 

@@ -11,14 +11,15 @@ import FacultyReports from './pages/faculty/Reports';
 import AcademicProgress from './pages/faculty/AcademicProgress';
 import Gradebook from './pages/faculty/Gradebook';
 import ResourceCenter from './pages/faculty/ResourceCenter';
+import MyClass from './pages/faculty/MyClass';
 
 import './App.css';
 
 // Admin Components
+import DashboardLayout from './layouts/DashboardLayout';
 import AdminLayout from './layouts/AdminLayout';
 import DashboardOverview from './pages/admin/DashboardOverview';
 import UserManagement from './pages/admin/UserManagement';
-import AdminReports from './pages/admin/Reports';
 import Departments from './pages/admin/academic/Departments';
 import Courses from './pages/admin/academic/Courses';
 import Semesters from './pages/admin/academic/Semesters';
@@ -28,6 +29,8 @@ import SettingsConfig from './pages/admin/SettingsConfig';
 import Seeder from './pages/admin/academic/Seeder';
 import Students from './pages/admin/academic/Students';
 import Timetable from './pages/admin/academic/Timetable';
+import AttendanceRecords from './pages/admin/academic/AttendanceRecords';
+import ManualAttendance from './pages/admin/academic/ManualAttendance';
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -67,7 +70,6 @@ function App() {
             <Route index element={<Navigate to="overview" replace />} />
             <Route path="overview" element={<DashboardOverview />} />
             <Route path="users" element={<UserManagement />} />
-            <Route path="reports" element={<AdminReports />} />
             {/* Academic Management Routes */}
             <Route path="departments" element={<Departments />} />
             <Route path="academic-courses" element={<Courses />} />
@@ -76,28 +78,30 @@ function App() {
             <Route path="assignments" element={<FacultyAssignments />} />
             <Route path="students" element={<Students />} />
             <Route path="academic-timetable" element={<Timetable />} />
+            <Route path="attendance-records" element={<AttendanceRecords />} />
+            <Route path="manual-attendance" element={<ManualAttendance />} />
             <Route path="settings" element={<SettingsConfig />} />
             <Route path="seed" element={<Seeder />} />
             <Route path="*" element={<div style={{ padding: '2rem', color: 'white' }}>Page Under Construction</div>} />
           </Route>
 
           {/* Faculty Dashboard Routes */}
-          <Route path="/faculty/dashboard" element={
+          <Route path="/faculty" element={
             <ProtectedRoute requiredRole="faculty">
-              <FacultyDashboard />
+              <DashboardLayout />
             </ProtectedRoute>
-          }
-          />
+          }>
+            <Route path="dashboard" element={<FacultyDashboard />} />
+            <Route path="courses" element={<FacultyCourses />} />
+            <Route path="my-class" element={<MyClass />} />
+            <Route path="academic-progress" element={<AcademicProgress />} />
+            <Route path="gradebook" element={<Gradebook />} />
+            <Route path="resources" element={<ResourceCenter />} />
+
+            <Route path="profile" element={<UserProfile />} />
+          </Route>
+
           <Route path="/faculty-dashboard" element={<Navigate to="/faculty/dashboard" replace />} /> {/* Legacy redirect */}
-
-          {/* Faculty Routes */}
-          <Route path="/faculty/courses" element={<ProtectedRoute requiredRole="faculty"><FacultyCourses /></ProtectedRoute>} />
-
-          <Route path="/faculty/academic-progress" element={<ProtectedRoute requiredRole="faculty"><AcademicProgress /></ProtectedRoute>} />
-          <Route path="/faculty/gradebook" element={<ProtectedRoute requiredRole="faculty"><Gradebook /></ProtectedRoute>} />
-          <Route path="/faculty/resources" element={<ProtectedRoute requiredRole="faculty"><ResourceCenter /></ProtectedRoute>} />
-          <Route path="/faculty/reports" element={<ProtectedRoute requiredRole="faculty"><FacultyReports /></ProtectedRoute>} />
-          <Route path="/faculty/profile" element={<ProtectedRoute requiredRole="faculty"><UserProfile /></ProtectedRoute>} />
         </Routes>
       </AuthProvider>
     </Router>

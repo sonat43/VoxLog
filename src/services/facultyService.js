@@ -159,13 +159,163 @@ export const getMySubjects = async (facultyId) => {
         // Fetch actual subject details
         const subDoc = await getDoc(doc(db, "subjects", data.subjectId));
         if (subDoc.exists()) {
+            const subjectData = subDoc.data();
+            let semesterData = {};
+
+            // Fetch Semester Details if linked
+            if (subjectData.semesterId) {
+                try {
+                    const semDoc = await getDoc(doc(db, "semesters", subjectData.semesterId));
+                    if (semDoc.exists()) {
+                        semesterData = {
+                            semesterName: semDoc.data().name,
+                            semesterNo: semDoc.data().semesterNo
+                        };
+                    }
+                } catch (err) {
+                    console.error("Error fetching semester for subject", subjectData.name, err);
+                }
+            }
+
             subjects.push({
                 id: subDoc.id,
-                ...subDoc.data(),
+                ...subjectData,
+                ...semesterData,
                 assignmentId: d.id,
                 academicYear: data.academicYear
             });
         }
     }
     return subjects;
+};
+
+export const getDashboardStats = async (facultyId) => {
+    try {
+        // 1. Get Subjects
+        const subjects = await getMySubjects(facultyId);
+
+        // Initialize Aggregates
+        let totalAtRisk = 0;
+        let totalPendingGrading = 0;
+        let totalSyllabusTopics = 0;
+        let completedSyllabusTopics = 0;
+        let recentActivity = [];
+
+        // Cache for semester student counts to avoid repeated fetching
+        const semesterStudentCounts = {};
+
+        // 2. Iterate Subjects
+        for (const subject of subjects) {
+            // --- Syllabus Progress ---
+            const syllabus = await getSyllabus(subject.id);
+            if (syllabus && syllabus.topics) {
+                totalSyllabusTopics += syllabus.topics.length;
+                completedSyllabusTopics += syllabus.topics.filter(t => t.completed).length;
+            }
+
+            // --- Assessments & Grading ---
+            const assessments = await getAssessments(subject.id);
+
+            // Filter only published assessments? Assuming all fetched are relevant.
+
+            // Get Student Count for this Semester
+            if (subject.semesterId) {
+                if (semesterStudentCounts[subject.semesterId] === undefined) {
+                    const qStudents = query(collection(db, "students"), where("semesterId", "==", subject.semesterId));
+                    const snap = await getDocs(qStudents);
+                    semesterStudentCounts[subject.semesterId] = snap.size;
+                }
+                const studentCount = semesterStudentCounts[subject.semesterId];
+
+                // Calculate Pending Grading
+                for (const assessment of assessments) {
+                    const grades = await getGradesForAssessment(assessment.id);
+                    const gradedCount = grades.length;
+
+                    // Pending = Total Students - Graded Count
+                    // Ensure non-negative (incase student count changed)
+                    const pending = Math.max(0, studentCount - gradedCount);
+                    totalPendingGrading += pending;
+
+                    // Add to recent activity (simple logic: created recently)
+                    const diffDays = (new Date() - assessment.createdAt.toDate()) / (1000 * 3600 * 24);
+                    if (diffDays < 7) {
+                        recentActivity.push({
+                            type: 'assessment',
+                            title: assessment.title,
+                            subject: subject.name,
+                            date: assessment.createdAt.toDate()
+                        });
+                    }
+                }
+            }
+
+            // --- At Risk (Reuse existing logic per subject) ---
+            const atRiskInSubject = await getAtRiskStudents(subject.id);
+            totalAtRisk += atRiskInSubject.length;
+        }
+
+        // Fetch Recent Attendance
+        const recentAttendance = await getAttendanceHistory(facultyId); // We just added this function
+        recentAttendance.forEach(att => {
+            const diffDays = (new Date() - att.timestamp.toDate()) / (1000 * 3600 * 24);
+            if (diffDays < 7) {
+                recentActivity.push({
+                    type: 'attendance',
+                    title: `Attendance: ${att.mode === 'voice' ? 'Voice' : 'Camera'}`,
+                    subject: att.subjectName,
+                    date: att.timestamp.toDate()
+                });
+            }
+        });
+
+        // 3. Calculate Syllabus %
+        const syllabusProgress = totalSyllabusTopics > 0
+            ? Math.round((completedSyllabusTopics / totalSyllabusTopics) * 100)
+            : 0;
+
+        return {
+            subjectsCount: subjects.length,
+            atRiskCount: totalAtRisk,
+            pendingGrading: totalPendingGrading,
+            syllabusProgress: syllabusProgress,
+            recentActivity: recentActivity.sort((a, b) => b.date - a.date).slice(0, 5) // Top 5 recent
+        };
+
+    } catch (error) {
+        console.error("Error aggregating dashboard stats:", error);
+        throw error;
+    }
+};
+
+// ===========================
+// ATTENDANCE MANAGEMENT
+// ===========================
+
+export const saveAttendanceSession = async (sessionData) => {
+    try {
+        await addDoc(collection(db, "attendance_history"), {
+            ...sessionData,
+            timestamp: serverTimestamp()
+        });
+        return { success: true };
+    } catch (error) {
+        console.error("Error saving attendance session:", error);
+        throw error;
+    }
+};
+
+export const getAttendanceHistory = async (facultyId) => {
+    try {
+        const q = query(
+            collection(db, "attendance_history"),
+            where("facultyId", "==", facultyId),
+            orderBy("timestamp", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching attendance history:", error);
+        return [];
+    }
 };

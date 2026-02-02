@@ -11,9 +11,11 @@ import {
     LogOut,
     Menu,
     ChevronLeft,
-    Bell
+    Bell,
+    GraduationCap,
+    Users
 } from 'lucide-react';
-import { useNavigate, useLocation } from 'react-router-dom';
+import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }) => (
     <motion.button
@@ -67,9 +69,10 @@ const DashboardLayout = ({ children }) => {
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty/dashboard' },
         { icon: BookOpen, label: 'My Courses', path: '/faculty/courses' },
+        { icon: Users, label: 'My Class', path: '/faculty/my-class' },
         { icon: ClipboardCheck, label: 'Start Attendance', path: '/faculty/attendance', primary: true },
         { icon: History, label: 'History', path: '/faculty/history' },
-        { icon: FileText, label: 'Reports', path: '/faculty/reports' },
+
         { icon: User, label: 'Profile', path: '/faculty/profile' },
     ];
 
@@ -217,7 +220,7 @@ const DashboardLayout = ({ children }) => {
                     padding: '2rem',
                     position: 'relative'
                 }}>
-                    {children}
+                    {children || <Outlet />}
                 </main>
             </div>
         </div>

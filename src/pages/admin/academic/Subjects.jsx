@@ -3,8 +3,9 @@ import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
 import { getSubjects, addSubject, getCourses, getSemesters, updateSubject, deleteSubject } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
-import { Edit, Trash2 } from 'lucide-react';
 import ConfirmModal from '../../../components/common/ConfirmModal';
+import SyllabusModal from '../../../components/admin/academic/SyllabusModal';
+import { BookOpen, Edit, Trash2 } from 'lucide-react';
 
 const Subjects = () => {
     const [subjects, setSubjects] = useState([]);
@@ -13,6 +14,7 @@ const Subjects = () => {
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
     const [selectedSubject, setSelectedSubject] = useState(null);
 
     const [formData, setFormData] = useState({ code: '', name: '', credits: 3, courseId: '', semesterId: '' });
@@ -140,6 +142,24 @@ const Subjects = () => {
                 <Edit size={16} />
             </button>
             <button
+                onClick={() => {
+                    setSelectedSubject(row);
+                    setIsSyllabusModalOpen(true);
+                }}
+                style={{
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#3b82f6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                title="Manage Syllabus"
+            >
+                <BookOpen size={16} />
+            </button>
+            <button
                 onClick={() => confirmDelete(row)}
                 style={{
                     background: 'rgba(239, 68, 68, 0.1)',
@@ -191,6 +211,12 @@ const Subjects = () => {
                 message={`Are you sure you want to delete ${selectedSubject?.name}?`}
                 isDangerous={true}
                 confirmText="Delete"
+            />
+
+            <SyllabusModal
+                isOpen={isSyllabusModalOpen}
+                onClose={() => setIsSyllabusModalOpen(false)}
+                subject={selectedSubject}
             />
 
             <SimpleModal isOpen={isModalOpen} onClose={handleCloseModal} title={editingId ? "Edit Subject" : "Add Subject"}>

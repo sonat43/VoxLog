@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { provisionUser } from '../../../services/adminService';
-import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments, getCourses } from '../../../services/academicService';
+import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments, getCourses, getSemesters, getStudentsBySemester, recordAttendance, addStudent, getSubjects } from '../../../services/academicService';
+import { getTimetable, saveTimetable, generateTimetable } from '../../../services/timetableService';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
 const Seeder = () => {
@@ -12,7 +13,7 @@ const Seeder = () => {
     const runSeeder = async () => {
         setStatus('running');
         setLogs([]);
-        addLog("Starting Data Seeding...");
+        addLog("Starting Data Seeding (Departments, Courses, Students, Timetables, Attendance)...");
 
         try {
             // 1. DEPARTMENTS
@@ -108,9 +109,115 @@ const Seeder = () => {
                 }
             }
 
+            // 4. STUDENTS & TIMETABLES
+            addLog("Verifying Students & Timetables...");
+            const allSemestersForAtt = await getSemesters();
+            const semesterStudents = {};
+            const timetables = {};
+
+            for (const sem of allSemestersForAtt) {
+                // A. Check/Create Students
+                let students = await getStudentsBySemester(sem.id);
+                if (students.length === 0) {
+                    // Create dummy students if none exist
+                    addLog(`Creating 10 students for Semester ${sem.semesterNo}...`);
+                    for (let k = 1; k <= 10; k++) {
+                        await addStudent({
+                            name: `Student ${k} - Sem ${sem.semesterNo}`,
+                            regNo: `REG${sem.id.substring(0, 4)}${k}`,
+                            email: `student${k}_${sem.id.substring(0, 4)}@voxlog.edu`,
+                            semesterId: sem.id,
+                            department: 'Computer Science', // keeping simple
+                            status: 'active'
+                        });
+                    }
+                    students = await getStudentsBySemester(sem.id);
+                }
+                semesterStudents[sem.id] = students;
+
+                // B. Check/Create Timetable
+                let schedule = await getTimetable(sem.id);
+                if (!schedule) {
+                    addLog(`Generating Timetable for Semester ${sem.semesterNo}...`);
+                    // Need subjects
+                    const allSubs = await getSubjects(); // Inefficient to fetch all every time but safe
+                    const semSubs = allSubs.filter(s => s.semesterId === sem.id);
+
+                    if (semSubs.length > 0) {
+                        const newSchedule = generateTimetable(semSubs);
+                        await saveTimetable(sem.id, newSchedule);
+                        schedule = newSchedule;
+                        addLog(`✅ Timetable created.`);
+                    } else {
+                        addLog(`⚠️ No subjects for Sem ${sem.semesterNo}, skipping timetable.`);
+                    }
+                }
+                if (schedule) timetables[sem.id] = schedule;
+            }
+
+            // 5. RANDOM ATTENDANCE (From Jan 1, 2026)
+            addLog("Generating Attendance Data (Jan 1, 2026 - Today)...");
+
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const today = new Date();
+            const startDate = new Date('2026-01-01');
+            let recordCount = 0;
+
+            // Iterate loop from StartDate to Today
+            for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+
+                const dayName = days[d.getDay()];
+                const dateString = d.toISOString().split('T')[0];
+
+                if (dayName === 'Sunday' || dayName === 'Saturday') continue; // Skip weekends
+
+                // For each semester
+                for (const sem of allSemestersForAtt) {
+                    const schedule = timetables[sem.id];
+                    const students = semesterStudents[sem.id];
+
+                    if (!schedule) {
+                        if (d.getDate() === 1) addLog(`Skipping Sem ${sem.semesterNo}: No Timetable`);
+                        continue;
+                    }
+                    if (!students || students.length === 0) {
+                        if (d.getDate() === 1) addLog(`Skipping Sem ${sem.semesterNo}: No Students`);
+                        continue;
+                    }
+
+                    const daySlots = schedule[dayName];
+                    if (!daySlots || daySlots.length === 0) continue;
+
+                    // For each slot in the timetable
+                    for (const slot of daySlots) {
+                        // For each student
+                        for (const student of students) {
+                            // 85% chance of being present
+                            const isPresent = Math.random() < 0.85;
+                            const status = isPresent ? 'Present' : 'Absent';
+
+                            // Optimization: In real app, batch writes. Here sequential is slow but safe.
+                            await recordAttendance({
+                                studentId: student.id,
+                                studentName: student.name,
+                                subjectId: slot.subjectId,
+                                subjectName: slot.subjectname,
+                                semesterId: sem.id,
+                                date: new Date(d), // Clone date to avoid reference issues
+                                dateString: dateString,
+                                status: status,
+                                slotTime: slot.timeRange
+                            });
+                            recordCount++;
+                        }
+                    }
+                }
+                if (d.getDate() === 1) addLog(`Processing ${dateString} - Total Records: ${recordCount}...`);
+            }
+            addLog(`✅ Generated ${recordCount} attendance records.`);
+
             setStatus('success');
             addLog("🎉 Seeding Completed!");
-
         } catch (globalError) {
             console.error(globalError);
             addLog(`❌ Critical Error: ${globalError.message}`);

@@ -57,7 +57,13 @@ export const provisionUser = async (data) => {
             status: data.status, // 'active' or 'disabled'
             assignedClasses: 0,
             createdAt: new Date().toISOString(),
-            lastLogin: null
+            lastLogin: null,
+            // Extended Init
+            gender: '', dateOfBirth: '', nationality: '', maritalStatus: '',
+            phone: '', address: '', city: '', state: '', zipCode: '',
+            emergencyContactName: '', emergencyContactRelation: '', emergencyContactPhone: '',
+            designation: '', employeeId: '', joiningDate: '', specialization: '',
+            qualifications: '', experience: '', linkedInProfile: '', googleScholarProfile: ''
         });
 
         // 6. Access Control: If status is 'disabled', we might want to do something, 
@@ -123,7 +129,28 @@ export const updateUser = async (uid, data) => {
             displayName: data.displayName,
             department: data.department,
             role: data.role,
-            status: data.status
+            status: data.status,
+            // Extended Profile Data
+            gender: data.gender || '',
+            dateOfBirth: data.dateOfBirth || '',
+            nationality: data.nationality || '',
+            maritalStatus: data.maritalStatus || '',
+            phone: data.phone || '',
+            address: data.address || '',
+            city: data.city || '',
+            state: data.state || '',
+            zipCode: data.zipCode || '',
+            emergencyContactName: data.emergencyContactName || '',
+            emergencyContactRelation: data.emergencyContactRelation || '',
+            emergencyContactPhone: data.emergencyContactPhone || '',
+            designation: data.designation || '',
+            employeeId: data.employeeId || '',
+            joiningDate: data.joiningDate || '',
+            specialization: data.specialization || '',
+            qualifications: data.qualifications || '',
+            experience: data.experience || '',
+            linkedInProfile: data.linkedInProfile || '',
+            googleScholarProfile: data.googleScholarProfile || ''
         });
         return { success: true };
     } catch (error) {

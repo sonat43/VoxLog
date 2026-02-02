@@ -1,8 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mic, Camera, CheckCircle, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { saveAttendanceSession } from '../../services/facultyService';
+import { useAuth } from '../../context/AuthContext';
 
 const AttendanceModal = ({ isOpen, onClose, courses }) => {
+    const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [selectedCourse, setSelectedCourse] = useState(null);
     const [mode, setMode] = useState(null); // 'voice' or 'camera'
@@ -306,7 +309,26 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                         </button>
                     ) : (
                         <button
-                            onClick={onClose}
+                            onClick={async () => {
+                                if (selectedCourse) {
+                                    try {
+                                        await saveAttendanceSession({
+                                            subjectId: selectedCourse.id,
+                                            subjectName: selectedCourse.name,
+                                            section: selectedCourse.section || 'N/A',
+                                            mode: mode,
+                                            confidence: aiConfidence,
+                                            facultyId: user?.uid,
+                                            status: 'active'
+                                        });
+                                        onClose();
+                                    } catch (error) {
+                                        console.error("Failed to start session", error);
+                                        // Optional: Show error
+                                        onClose();
+                                    }
+                                }
+                            }}
                             style={{
                                 padding: '0.75rem 1.5rem',
                                 borderRadius: '0.5rem',

@@ -26,20 +26,20 @@ const Timetable = () => {
     // Constants
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const periods = [
+        { start: '08:00', end: '09:00' },
         { start: '09:00', end: '10:00' },
-        { start: '10:00', end: '11:00' },
-        { start: '11:15', end: '12:15' },
-        { start: '12:15', end: '13:15' },
+        { start: '10:20', end: '11:10' },
+        { start: '11:10', end: '12:00' },
+        { start: '13:00', end: '14:00' },
         { start: '14:00', end: '15:00' },
-        { start: '15:00', end: '16:00' }
+        { start: '15:15', end: '16:00' }
     ];
 
     // Auxiliary subjects for manual entry
     const auxSubjects = [
         { id: 'lib', name: 'Library' },
         { id: 'sports', name: 'Sports' },
-        { id: 'seminar', name: 'Seminar' },
-        { id: 'break', name: 'Break/Lunch' }
+        { id: 'seminar', name: 'Seminar' }
     ];
 
     // --- Init ---
@@ -209,7 +209,7 @@ const Timetable = () => {
                 </div>
             ) : (
                 <div style={{ overflowX: 'auto', background: '#111827', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.05)' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
+                    <table style={{ width: '100%', borderCollapse: 'collapse', tableLayout: 'fixed' }}>
                         <thead>
                             <tr>
                                 <th style={thStyle}><div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}><Clock size={16} /> Day / Time</div></th>
@@ -319,8 +319,8 @@ const labelStyle = { display: 'block', color: '#94a3b8', fontSize: '0.8rem', mar
 const selectStyle = { width: '100%', padding: '10px', borderRadius: '8px', background: '#0f172a', border: '1px solid #334155', color: 'white', outline: 'none' };
 const btnStylePrimary = { background: '#14b8a6', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' };
 const btnStyleSecondary = { background: 'rgba(255,255,255,0.1)', color: 'white', border: 'none', padding: '10px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' };
-const thStyle = { padding: '1rem', textAlign: 'left', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)' };
-const tdStyle = { padding: '0.5rem', borderRight: '1px solid rgba(255,255,255,0.05)', minWidth: '140px' };
+const thStyle = { padding: '0.75rem 0.5rem', textAlign: 'left', background: 'rgba(255,255,255,0.02)', borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' };
+const tdStyle = { padding: '0.25rem', borderRight: '1px solid rgba(255,255,255,0.05)', minWidth: '100px', height: '60px' };
 const optionBtnStyle = {
     padding: '10px', borderRadius: '6px', background: 'rgba(20, 184, 166, 0.1)',
     border: '1px solid rgba(20, 184, 166, 0.2)', color: '#e2e8f0',

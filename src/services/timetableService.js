@@ -56,12 +56,13 @@ export const getTimetable = async (semesterId) => {
 export const generateTimetable = (subjects) => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const periods = [
+        { start: '08:00', end: '09:00' },
         { start: '09:00', end: '10:00' },
-        { start: '10:00', end: '11:00' },
-        { start: '11:15', end: '12:15' }, // Break 11:00-11:15
-        { start: '12:15', end: '13:15' },
-        { start: '14:00', end: '15:00' }, // Lunch 13:15-14:00
-        { start: '15:00', end: '16:00' }
+        { start: '10:20', end: '11:10' },
+        { start: '11:10', end: '12:00' },
+        { start: '13:00', end: '14:00' },
+        { start: '14:00', end: '15:00' },
+        { start: '15:15', end: '16:00' }
     ];
 
     const schedule = {};

@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import AttendanceModal from '../../components/dashboard/AttendanceModal';
-import DashboardLayout from '../../layouts/DashboardLayout';
+
 import CourseCard from '../../components/dashboard/CourseCard';
 import LoadingScreen from '../../components/LoadingScreen';
 import { useAuth } from '../../context/AuthContext';
@@ -166,92 +166,100 @@ const FacultyCourses = () => {
         setShowAttendanceModal(true);
     };
 
-    if (loading) {
-        return <LoadingScreen />;
-    }
+    // Loading state is now handled inside the main return to preserve layout
+    // if (loading) return <LoadingScreen />;
 
     return (
-        <DashboardLayout>
+        <>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
                 <h1 style={{ color: 'white', marginBottom: '0.5rem', fontSize: '2rem' }}>Academic Overview</h1>
                 <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem' }}>
                     Manage your assigned subjects and view class details.
                 </p>
 
-                {/* My Class Teacher Status Section */}
-                {myManagedClasses.length > 0 && (
-                    <section style={{ marginBottom: '3rem' }}>
-                        <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <Users size={24} color="var(--color-accent)" />
-                            My Class (Class Teacher)
-                        </h2>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                            {myManagedClasses.map((cls) => (
-                                <div key={cls.id} style={{
-                                    background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(30, 41, 59, 0.3))',
-                                    border: '1px solid var(--color-accent)',
-                                    borderRadius: '1rem',
-                                    padding: '1.5rem',
-                                    position: 'relative',
-                                    overflow: 'hidden'
-                                }}>
-                                    <div style={{
-                                        position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem',
-                                        background: 'var(--color-accent)', color: 'white',
-                                        borderBottomLeftRadius: '0.75rem', fontSize: '0.875rem', fontWeight: 600
-                                    }}>
-                                        Class Teacher
-                                    </div>
-                                    <h3 style={{ color: 'white', fontSize: '1.25rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
-                                        {cls.programName}
-                                    </h3>
-                                    <div style={{ color: 'var(--color-text-muted)', fontSize: '1rem', marginBottom: '1rem' }}>
-                                        Semester {cls.semesterNo}
-                                    </div>
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-main)' }}>
-                                        <Users size={18} />
-                                        <span style={{ fontWeight: 600 }}>{cls.studentCount}</span> Students Enrolled
-                                    </div>
+                {loading ? (
+                    <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
+                        <div className="animate-spin" style={{ width: '40px', height: '40px', border: '3px solid rgba(255,255,255,0.1)', borderTopColor: '#14b8a6', borderRadius: '50%' }}></div>
+                    </div>
+                ) : (
+                    <>
+
+                        {/* My Class Teacher Status Section */}
+                        {myManagedClasses.length > 0 && (
+                            <section style={{ marginBottom: '3rem' }}>
+                                <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <Users size={24} color="var(--color-accent)" />
+                                    My Class (Class Teacher)
+                                </h2>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                    {myManagedClasses.map((cls) => (
+                                        <div key={cls.id} style={{
+                                            background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(30, 41, 59, 0.3))',
+                                            border: '1px solid var(--color-accent)',
+                                            borderRadius: '1rem',
+                                            padding: '1.5rem',
+                                            position: 'relative',
+                                            overflow: 'hidden'
+                                        }}>
+                                            <div style={{
+                                                position: 'absolute', top: 0, right: 0, padding: '0.5rem 1rem',
+                                                background: 'var(--color-accent)', color: 'white',
+                                                borderBottomLeftRadius: '0.75rem', fontSize: '0.875rem', fontWeight: 600
+                                            }}>
+                                                Class Teacher
+                                            </div>
+                                            <h3 style={{ color: 'white', fontSize: '1.25rem', marginBottom: '0.5rem', marginTop: '1rem' }}>
+                                                {cls.programName}
+                                            </h3>
+                                            <div style={{ color: 'var(--color-text-muted)', fontSize: '1rem', marginBottom: '1rem' }}>
+                                                Semester {cls.semesterNo}
+                                            </div>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--color-text-main)' }}>
+                                                <Users size={18} />
+                                                <span style={{ fontWeight: 600 }}>{cls.studentCount}</span> Students Enrolled
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                    </section>
+                            </section>
+                        )}
+
+                        {/* My Assigned Subjects Section */}
+                        <section>
+                            <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <BookOpen size={24} color="var(--color-primary)" />
+                                My Assigned Subjects
+                            </h2>
+
+                            {myCourses.length === 0 ? (
+                                <div style={{
+                                    padding: '3rem',
+                                    textAlign: 'center',
+                                    background: 'rgba(255,255,255,0.02)',
+                                    borderRadius: '1rem',
+                                    border: '1px dashed var(--color-border)',
+                                    color: 'var(--color-text-muted)'
+                                }}>
+                                    No subjects assigned yet.
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                                    {myCourses.map((course) => (
+                                        <CourseCard
+                                            key={course.id}
+                                            courseCode={course.courseCode}
+                                            courseName={course.courseName}
+                                            section={course.section}
+                                            studentCount={course.studentCount}
+                                            status={activeSubjectIds.includes(course.subjectId) ? 'active' : 'inactive'}
+                                            onAction={() => handleTakeAttendance(course)}
+                                        />
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    </>
                 )}
-
-                {/* My Assigned Subjects Section */}
-                <section>
-                    <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <BookOpen size={24} color="var(--color-primary)" />
-                        My Assigned Subjects
-                    </h2>
-
-                    {myCourses.length === 0 ? (
-                        <div style={{
-                            padding: '3rem',
-                            textAlign: 'center',
-                            background: 'rgba(255,255,255,0.02)',
-                            borderRadius: '1rem',
-                            border: '1px dashed var(--color-border)',
-                            color: 'var(--color-text-muted)'
-                        }}>
-                            No subjects assigned yet.
-                        </div>
-                    ) : (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                            {myCourses.map((course) => (
-                                <CourseCard
-                                    key={course.id}
-                                    courseCode={course.courseCode}
-                                    courseName={course.courseName}
-                                    section={course.section}
-                                    studentCount={course.studentCount}
-                                    status={activeSubjectIds.includes(course.subjectId) ? 'active' : 'inactive'}
-                                    onAction={() => handleTakeAttendance(course)}
-                                />
-                            ))}
-                        </div>
-                    )}
-                </section>
             </div>
 
             {/* Attendance Modal */}
@@ -264,7 +272,7 @@ const FacultyCourses = () => {
                     />
                 )}
             </AnimatePresence>
-        </DashboardLayout>
+        </>
     );
 };
 

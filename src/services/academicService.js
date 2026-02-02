@@ -9,7 +9,9 @@ import {
     query,
     where,
     serverTimestamp,
-    getDoc
+    getDoc,
+    orderBy,
+    limit
 } from 'firebase/firestore';
 
 // ===========================
@@ -188,16 +190,15 @@ export const deleteSubject = async (subjectId) => {
 // ===========================
 
 export const assignFacultyToSubject = async (facultyId, subjectId, academicYear) => {
-    // Check for duplicate assignment
+    // Check if subject is already assigned for this academic year (to anyone)
     const q = query(
         collection(db, "faculty_subjects"),
-        where("facultyId", "==", facultyId),
         where("subjectId", "==", subjectId),
         where("academicYear", "==", academicYear)
     );
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("This faculty is already assigned to this subject for the academic year " + academicYear);
+        throw new Error("This subject is already assigned to a faculty member for the academic year " + academicYear);
     }
 
     await addDoc(collection(db, "faculty_subjects"), {
@@ -216,6 +217,41 @@ export const getFacultyAssignmentsByFaculty = async (facultyId) => {
     const q = query(collection(db, "faculty_subjects"), where("facultyId", "==", facultyId));
     const querySnapshot = await getDocs(q);
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const updateFacultyAssignment = async (assignmentId, data) => {
+    // Check uniqueness if subjectId or academicYear is changing
+    if (data.subjectId || data.academicYear) {
+        // We need existing data if only one is updated to form a complete check, 
+        // but typically the UI sends the full object. We'll assume full object or fetch if critical.
+        // For efficiency, let's assume the UI sends the full set of constraints (subjectId, academicYear) if either changes, 
+        // OR we just query based on what's provided + existing. 
+        // Simplest robust way: query for conflicting assignment.
+
+        // Note: Ideally we should fetch the current doc to merge with `data` if `data` is partial,
+        // but our UI sends full `facultyId`, `subjectId`, `academicYear` in handleEdit.
+        // IF `data` is missing keys, this might be risky, but our current usage covers it.
+
+        const q = query(
+            collection(db, "faculty_subjects"),
+            where("subjectId", "==", data.subjectId),
+            where("academicYear", "==", data.academicYear)
+        );
+        const querySnapshot = await getDocs(q);
+
+        // Check if any doc found is NOT the one we are updating
+        const duplicate = querySnapshot.docs.find(doc => doc.id !== assignmentId);
+        if (duplicate) {
+            throw new Error("This subject is already assigned to a faculty member for the academic year " + data.academicYear);
+        }
+    }
+
+    const assignRef = doc(db, "faculty_subjects", assignmentId);
+    await updateDoc(assignRef, data);
+};
+
+export const deleteFacultyAssignment = async (assignmentId) => {
+    await deleteDoc(doc(db, "faculty_subjects", assignmentId));
 };
 
 export const getSemestersByClassTeacher = async (facultyId) => {
@@ -288,4 +324,149 @@ export const updateStudent = async (studentId, data) => {
 export const getAllStudents = async () => {
     const querySnapshot = await getDocs(collection(db, "students"));
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+// ===========================
+// ATTENDANCE
+// ===========================
+
+export const recordAttendance = async (data) => {
+    // data: { studentId, subjectId, semesterId, date (Timestamp/Date), status, dateString }
+
+    // Check for existing record to prevent duplicates/allow updates
+    const q = query(
+        collection(db, "attendance_records"),
+        where("studentId", "==", data.studentId),
+        where("subjectId", "==", data.subjectId),
+        where("dateString", "==", data.dateString)
+    );
+
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        // Update existing
+        const docId = querySnapshot.docs[0].id;
+        await updateDoc(doc(db, "attendance_records", docId), {
+            status: data.status,
+            updatedAt: serverTimestamp() // Track updates
+        });
+    } else {
+        // Create new
+        await addDoc(collection(db, "attendance_records"), {
+            ...data,
+            createdAt: serverTimestamp()
+        });
+    }
+};
+
+export const getAttendanceRecords = async (filters = {}) => {
+    // filters: { semesterId, subjectId, dateString, studentId, startDate, endDate }
+    let constraints = [];
+
+    if (filters.semesterId) constraints.push(where("semesterId", "==", filters.semesterId));
+    if (filters.subjectId) constraints.push(where("subjectId", "==", filters.subjectId));
+
+    // Exact date
+    if (filters.dateString) constraints.push(where("dateString", "==", filters.dateString));
+
+    // Date Range (YYYY-MM-DD comparison works lexicographically)
+    if (filters.startDate) constraints.push(where("dateString", ">=", filters.startDate));
+    if (filters.endDate) constraints.push(where("dateString", "<=", filters.endDate));
+
+    if (filters.studentId) constraints.push(where("studentId", "==", filters.studentId));
+
+    const q = query(collection(db, "attendance_records"), ...constraints);
+    const querySnapshot = await getDocs(q);
+    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+};
+
+export const getRecentAttendanceActivity = async (limitCount = 5) => {
+    // Requires an index on 'createdAt' or 'updatedAt' descending usually.
+    // For now, we'll try sorting by dateString descending (which is string YYYY-MM-DD)
+    // If we want real "latest actions", we need a timestamp. recordAttendance sets 'updatedAt' or 'createdAt'.
+
+    // We will use 'createdAt' for simplicity or 'updatedAt' if available. 
+    // Note: If using multiple orderBy or where+orderBy, Firestore requires an index.
+    // We will simple fetch a bit more and sort client side if index is missing to avoid "index required" error blocking us,
+    // OR we just query properly using 'orderBy'.
+    // Let's rely on 'createdAt' desc.
+
+    try {
+        const q = query(
+            collection(db, "attendance_records"),
+            orderBy("createdAt", "desc"),
+            limit(limitCount)
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (e) {
+        console.warn("Index might be missing for sort. Returning empty or unordered.", e);
+        // Fallback: fetch some and sort simple
+        const q = query(collection(db, "attendance_records"), limit(20));
+        const s = await getDocs(q);
+        let docs = s.docs.map(d => ({ id: d.id, ...d.data() }));
+        // Sort client side by createdAt if possible
+        docs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+        return docs.slice(0, limitCount);
+    }
+};
+// ===========================
+// SYLLABUS MANAGEMENT
+// ===========================
+
+export const getSyllabus = async (subjectId) => {
+    const q = query(collection(db, "course_syllabus"), where("subjectId", "==", subjectId));
+    const querySnapshot = await getDocs(q);
+    if (querySnapshot.empty) return { topics: [] };
+    return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+};
+
+export const saveSyllabus = async (subjectId, topics) => {
+    if (!subjectId) {
+        console.error("saveSyllabus Error: subjectId is missing!");
+        throw new Error("Invalid Subject ID");
+    }
+
+    // Check if exists
+    const q = query(collection(db, "course_syllabus"), where("subjectId", "==", subjectId));
+    const querySnapshot = await getDocs(q);
+
+    if (!querySnapshot.empty) {
+        // Update existing
+        const docId = querySnapshot.docs[0].id;
+        const existingData = querySnapshot.docs[0].data();
+
+        // Merge strategy: Keep existing 'completed' status if topic name matches
+        // Simple strategy for now: Overwrite list but try to preserve if exact match? 
+        // Plan says: Overwrite. New topics start uncompleted.
+        // But if I edit a topic name, I lose completion. That's acceptable for v1.
+
+        // However, if we just want to ADD/REMOVE topics without resetting ALL completion:
+        // We'd need to be careful.
+        // Let's just Map the new topics to the old structure if it exists.
+
+        const newTopics = topics.map(t => {
+            const oldTopic = existingData.topics?.find(ot => ot.name === t.name);
+            return {
+                name: t.name,
+                completed: oldTopic ? oldTopic.completed : false
+            };
+        });
+
+        const syllabusRef = doc(db, "course_syllabus", docId);
+        await updateDoc(syllabusRef, {
+            topics: newTopics,
+            lastUpdated: serverTimestamp()
+        });
+        console.log("Syllabus updated for subject:", subjectId);
+    } else {
+        // Create new
+        const newTopics = topics.map(t => ({ name: t.name, completed: false }));
+        await addDoc(collection(db, "course_syllabus"), {
+            subjectId,
+            topics: newTopics,
+            createdAt: serverTimestamp()
+        });
+        console.log("Syllabus created for subject:", subjectId);
+    }
 };

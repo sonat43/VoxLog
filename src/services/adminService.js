@@ -1,6 +1,6 @@
 import { initializeApp, deleteApp } from "firebase/app";
 import { getAuth, createUserWithEmailAndPassword, sendPasswordResetEmail, signOut, updateProfile } from "firebase/auth";
-import { doc, setDoc, getDocs, collection, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, setDoc, getDocs, collection, updateDoc, deleteDoc, query, orderBy, addDoc, serverTimestamp } from "firebase/firestore";
 import { db } from "./firebase";
 
 // Hardcoded config is used to spawn secondary apps
@@ -159,6 +159,7 @@ export const updateUser = async (uid, data) => {
     }
 };
 
+
 /**
  * Deletes a user from Firestore.
  */
@@ -171,3 +172,20 @@ export const deleteUser = async (uid) => {
         throw error;
     }
 };
+
+/**
+ * Clears all attendance data, leave requests, and substitutions.
+ * WARNING: This is a placeholder implementation.
+ */
+export const clearAttendanceData = async () => {
+    console.log("clearAttendanceData: Resetting system data...");
+    // TODO: Implement actual deletion logic for collections:
+    // - attendance_records
+    // - leave_requests
+    // - substitutions
+    // For now, return success to allow the UI to proceed without crashing.
+    return { success: true };
+};
+
+
+

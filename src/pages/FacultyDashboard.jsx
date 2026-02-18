@@ -2,11 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getTimetable } from '../services/timetableService';
 import AttendanceModal from '../components/dashboard/AttendanceModal';
-import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar } from 'lucide-react';
+import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getMySubjects, getDashboardStats } from '../services/facultyService';
+import { getMySubjects, getDashboardStats, getTodayAttendanceSessions } from '../services/facultyService';
+import { getSubstitutionsForFaculty } from '../services/substitutionService';
 import { useAuth } from '../context/AuthContext';
 import { Bell } from 'lucide-react';
+import { db } from '../services/firebase';
+import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
 
 
 const FacultyDashboard = () => {
@@ -22,33 +25,23 @@ const FacultyDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [selectedClassForAttendance, setSelectedClassForAttendance] = useState(null);
     const [todaysClasses, setTodaysClasses] = useState([]);
+    const [todaySessions, setTodaySessions] = useState([]);
+    const [timetables, setTimetables] = useState({});
+    const [showAttendanceModal, setShowAttendanceModal] = useState(false);
 
     // Initialize with current day index mapped to name
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [selectedDay, setSelectedDay] = useState(days[new Date().getDay()] === 'Sunday' ? 'Monday' : days[new Date().getDay()]);
+    const [notifications, setNotifications] = useState([]);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             if (user?.uid) {
+                // 1. Fetch Subjects and Timetables (Critical for Weekly Schedule)
                 try {
-                    // 1. Fetch Aggregated Stats
-                    const stats = await getDashboardStats(user.uid);
-                    setDashboardStats(stats);
-
-                    // 2. Keep Subjects for Live Session Logic (Fetched inside aggregation but beneficial to have raw list too)
-                    // Optimization: We could return subjects from getDashboardStats to save a call, 
-                    // but for now let's reuse getMySubjects or assume getDashboardStats returns subjects count only? 
-                    // To avoid double fetch, let's update getDashboardStats to return full subjects list or fetch here.
-                    // Implementation Plan used getDashboardStats which calls getMySubjects.
-                    // To keep it simple without changing service signature too much (it returns count atm), 
-                    // we'll explicitly fetch subjects again or accept the overhead for now. 
-                    // WAIT: I should have made getDashboardStats return the subjects list to be efficient.
-                    // But I returned { subjectsCount... }. 
-                    // Let's just call getMySubjects here for now as Live Session needs full objects.
-                    const mySubjects = await getMySubjects(user.uid); // This effectively is a 2nd call but cached likely by Firestore client?
+                    const mySubjects = await getMySubjects(user.uid);
                     setSubjects(mySubjects);
 
-                    // 3. Fetch Timetables for "Live" check
                     const uniqueSemesterIds = [...new Set(mySubjects.map(s => s.semesterId).filter(Boolean))];
                     const timetableMap = {};
                     await Promise.all(uniqueSemesterIds.map(async (semId) => {
@@ -58,9 +51,17 @@ const FacultyDashboard = () => {
                         }
                     }));
                     setTimetables(timetableMap);
-
                 } catch (error) {
-                    console.error("Dashboard data error", error);
+                    console.error("Error fetching subjects or timetables:", error);
+                }
+
+                // 2. Fetch Aggregated Stats (Optional - might fail if indexes missing)
+                try {
+                    const stats = await getDashboardStats(user.uid);
+                    setDashboardStats(stats);
+                } catch (error) {
+                    console.error("Dashboard data error (Stats):", error);
+                    // Don't break the whole dashboard if stats fail
                 } finally {
                     setLoading(false);
                 }
@@ -69,48 +70,128 @@ const FacultyDashboard = () => {
         fetchDashboardData();
     }, [user]);
 
-    // Calculate Today's Classes
-    useEffect(() => {
-        const calculateTodaysClasses = () => {
-            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-            const currentDayName = days[new Date().getDay()];
+    const [substitutions, setSubstitutions] = useState([]);
 
+    // Calculate Today's Classes AND Fetch All Substitutions for Weekly View
+    useEffect(() => {
+        const fetchData = async () => {
+            if (!user?.uid) return;
+
+            const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+            const todayDate = new Date();
+            const currentDayName = days[todayDate.getDay()];
+
+            // Format as YYYY-MM-DD in Local Time
+            const year = todayDate.getFullYear();
+            const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+            const day = String(todayDate.getDate()).padStart(2, '0');
+            const dateString = `${year}-${month}-${day}`;
+
+            // 1. Fetch ALL Substitutions (for Weekly View + Today)
+            let allSubs = [];
+            try {
+                allSubs = await getSubstitutionsForFaculty(user.uid); // Fetch all
+                setSubstitutions(Array.isArray(allSubs) ? allSubs : []);
+            } catch (err) {
+                console.error("Error fetching substitutions:", err);
+            }
+
+            // 2. Fetch today's attendance sessions to check status
+            let attended = [];
+            try {
+                attended = await getTodayAttendanceSessions(user.uid);
+                setTodaySessions(Array.isArray(attended) ? attended : []);
+            } catch (err) {
+                console.error("Error fetching today's sessions:", err);
+            }
+
+            // 3. Calculate Today's Classes
             const classes = [];
-            subjects.forEach(subject => {
-                if (subject.semesterId && timetables[subject.semesterId] && timetables[subject.semesterId][currentDayName]) {
-                    timetables[subject.semesterId][currentDayName].forEach(slot => {
-                        if (slot.subjectId === subject.id) {
-                            classes.push({ ...subject, ...slot });
-                        }
-                    });
-                }
+
+            // A. Regular
+            if (Array.isArray(subjects)) {
+                subjects.forEach(subject => {
+                    if (subject.semesterId && timetables[subject.semesterId] && timetables[subject.semesterId][currentDayName]) {
+                        timetables[subject.semesterId][currentDayName].forEach(slot => {
+                            if (slot.subjectId === subject.id) {
+                                const isTaken = attended.some(s =>
+                                    s.subjectId === subject.id &&
+                                    s.periodIndex === slot.periodIndex
+                                );
+                                classes.push({ ...subject, ...slot, isSubstitution: false, isAttendanceTaken: isTaken });
+                            }
+                        });
+                    }
+                });
+            }
+
+            // B. Substitutions (Today Only)
+            const todaysSubs = allSubs.filter(s => s.date === dateString);
+            todaysSubs.forEach(sub => {
+                const isTaken = attended.some(s =>
+                    s.subjectId === sub.subjectId &&
+                    s.periodIndex === sub.periodIndex &&
+                    s.isSubstitution
+                );
+                classes.push({
+                    id: sub.id,
+                    name: sub.subjectName || 'Substituted Class',
+                    code: sub.subjectCode || 'SUB',
+                    semesterNo: sub.semesterNo || '?',
+                    timeRange: sub.timeRange,
+                    periodIndex: sub.periodIndex,
+                    isSubstitution: true,
+                    isAttendanceTaken: isTaken,
+                    originalFacultyName: sub.originalFacultyName,
+                    semesterId: sub.semesterId || sub.classId,
+                    subjectId: sub.subjectId,
+                    date: sub.date,
+                    status: 'active'
+                });
             });
 
-            // Sort by time
+            // Sort
             classes.sort((a, b) => {
-                const timeA = a.timeRange.split(' - ')[0];
-                return timeA.localeCompare(b.timeRange.split(' - ')[0]);
+                if (!a.timeRange || !b.timeRange) return 0;
+                const timeA = (a.timeRange.split(' - ')[0] || "").trim();
+                const timeB = (b.timeRange.split(' - ')[0] || "").trim();
+                return timeA.localeCompare(timeB);
             });
 
             setTodaysClasses(classes);
         };
 
-        if (subjects.length > 0 && Object.keys(timetables).length > 0) {
-            calculateTodaysClasses();
-        }
-    }, [subjects, timetables]);
+        const fetchNotifications = async () => {
+            if (!user?.uid) return;
+            try {
+                const q = query(
+                    collection(db, "notifications"),
+                    where("userId", "==", user.uid),
+                    where("read", "==", false),
+                    limit(10)
+                );
+                const snap = await getDocs(q);
+                const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                notifs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                setNotifications(notifs);
+            } catch (e) {
+                console.error("Error fetching notifications", e);
+            }
+        };
+
+        fetchData();
+        fetchNotifications();
+    }, [subjects, timetables, user, showAttendanceModal]);
 
     const stats = [
-        { title: 'My Courses', value: subjects.length.toString(), icon: Book, color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.1)' },
-        { title: 'Pending Grading', value: dashboardStats.pendingGrading.toString(), icon: Layers, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.1)', trend: 'Missing Entries' },
-        { title: 'Syllabus', value: `${dashboardStats.syllabusProgress}%`, icon: BookOpen, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 'Completed' },
-        { title: 'At-Risk', value: dashboardStats.atRiskCount.toString(), icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', subtitle: 'Students' },
+        { title: 'My Courses', value: (subjects?.length || 0).toString(), icon: Book, color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.1)' },
+        { title: 'Syllabus', value: `${dashboardStats?.syllabusProgress || 0}%`, icon: BookOpen, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 'Completed' },
+        { title: 'At-Risk', value: (dashboardStats?.atRiskCount || 0).toString(), icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', subtitle: 'Students' },
     ];
 
     const quickActions = [
         { title: 'Course Tracker', desc: 'Update syllabus & topics', icon: BookOpen, path: '/faculty/academic-progress', color: '#14b8a6' },
-        { title: 'Gradebook', desc: 'Enter marks & review', icon: Award, path: '/faculty/gradebook', color: '#8b5cf6' },
-        { title: 'Resource Center', desc: 'Upload study materials', icon: Folder, path: '/faculty/resources', color: '#3b82f6' },
+        { title: 'Class Timetables', desc: 'View schedules & subs', icon: Calendar, path: '/faculty/timetables', color: '#3b82f6' },
     ];
 
     const containerVariants = {
@@ -124,6 +205,27 @@ const FacultyDashboard = () => {
     const itemVariants = {
         hidden: { opacity: 0, y: 20 },
         show: { opacity: 1, y: 0 }
+    };
+
+    const formatTimeRange = (timeRange) => {
+        if (!timeRange || typeof timeRange !== 'string') return '';
+        const parts = timeRange.split(' - ');
+        if (parts.length < 2) return timeRange;
+
+        const [start, end] = parts;
+
+        const to12Hour = (time) => {
+            if (!time || typeof time !== 'string' || !time.includes(':')) return time || '';
+            const [hours, minutes] = time.split(':');
+            const h = parseInt(hours, 10);
+            if (isNaN(h)) return time;
+            const m = minutes || '00';
+            const ampm = h >= 12 ? 'PM' : 'AM';
+            const h12 = h % 12 || 12;
+            return `${h12}:${m} ${ampm}`;
+        };
+
+        return `${to12Hour(start)} - ${to12Hour(end)}`;
     };
 
     return (
@@ -171,7 +273,7 @@ const FacultyDashboard = () => {
                 </motion.div>
 
                 {/* Today's Classes - Action Center */}
-                {todaysClasses.length > 0 && (
+                {todaysClasses.length > 0 ? (
                     <motion.div
                         variants={itemVariants}
                         initial={{ opacity: 0, y: -20 }}
@@ -212,45 +314,94 @@ const FacultyDashboard = () => {
                                             <Clock size={28} color="#34d399" />
                                         </div>
                                         <div>
-                                            <div style={{ color: '#34d399', fontWeight: 700, fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem' }}>
-                                                {session.timeRange}
+                                            <div style={{ color: '#34d399', fontWeight: 800, fontSize: '0.9rem', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{ background: 'rgba(52, 211, 153, 0.15)', padding: '2px 8px', borderRadius: '4px' }}>
+                                                    Period {session.periodIndex !== undefined ? session.periodIndex + 1 : '?'}
+                                                </span>
+                                                <span>•</span>
+                                                <span>{formatTimeRange(session.timeRange)}</span>
                                             </div>
-                                            <h2 style={{ color: 'white', fontSize: '1.25rem', fontWeight: 700, margin: 0 }}>
+                                            <h2 style={{ color: 'white', fontSize: '1.25rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {session.name}
+                                                {session.isSubstitution && (
+                                                    <span style={{
+                                                        fontSize: '0.7rem',
+                                                        background: '#f59e0b',
+                                                        color: 'white',
+                                                        padding: '0.2rem 0.5rem',
+                                                        borderRadius: '0.5rem',
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.05em'
+                                                    }}>
+                                                        Sub
+                                                    </span>
+                                                )}
                                             </h2>
                                             <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{session.code}</span> •
                                                 <span>Sem {session.semesterNo || 'N/A'}</span>
+                                                {session.isSubstitution && (
+                                                    <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>
+                                                        (For {session.originalFacultyName})
+                                                    </span>
+                                                )}
                                             </div>
                                         </div>
                                     </div>
                                     <motion.button
-                                        whileHover={{ scale: 1.05 }}
-                                        whileTap={{ scale: 0.95 }}
+                                        whileHover={!session.isAttendanceTaken ? { scale: 1.05 } : {}}
+                                        whileTap={!session.isAttendanceTaken ? { scale: 0.95 } : {}}
                                         onClick={() => {
-                                            setSelectedClassForAttendance(session);
-                                            setShowAttendanceModal(true);
+                                            if (!session.isAttendanceTaken) {
+                                                setSelectedClassForAttendance(session);
+                                                setShowAttendanceModal(true);
+                                            }
                                         }}
+                                        disabled={session.isAttendanceTaken}
                                         style={{
-                                            background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                            border: 'none',
+                                            background: session.isAttendanceTaken
+                                                ? 'rgba(16, 185, 129, 0.1)'
+                                                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                            border: session.isAttendanceTaken ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
                                             borderRadius: '1rem',
                                             padding: '0.75rem 1.5rem',
-                                            color: 'white',
+                                            color: session.isAttendanceTaken ? '#34d399' : 'white',
                                             fontWeight: 600,
                                             fontSize: '1rem',
-                                            cursor: 'pointer',
-                                            boxShadow: '0 4px 15px rgba(16, 185, 129, 0.3)',
+                                            cursor: session.isAttendanceTaken ? 'default' : 'pointer',
+                                            boxShadow: session.isAttendanceTaken ? 'none' : '0 4px 15px rgba(16, 185, 129, 0.3)',
                                             display: 'flex', alignItems: 'center', gap: '0.5rem',
                                             whiteSpace: 'nowrap'
                                         }}
                                     >
-                                        <Users size={18} />
-                                        Attendance
+                                        {session.isAttendanceTaken ? (
+                                            <>
+                                                <CheckCircle size={18} />
+                                                Completed
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Users size={18} />
+                                                Attendance
+                                            </>
+                                        )}
                                     </motion.button>
                                 </motion.div>
                             ))}
                         </div>
+                    </motion.div >
+                ) : (
+                    <motion.div
+                        variants={itemVariants}
+                        style={{
+                            background: 'rgba(30, 41, 59, 0.4)',
+                            borderRadius: '1.5rem', padding: '2rem',
+                            textAlign: 'center', color: '#94a3b8',
+                            border: '1px solid rgba(255,255,255,0.05)'
+                        }}
+                    >
+                        <h2 style={{ fontSize: '1.5rem', margin: '0 0 0.5rem 0', color: '#f1f5f9' }}>Relax, No Classes Today!</h2>
+                        <p style={{ margin: 0 }}>You don't have any periods scheduled for today.</p>
                     </motion.div>
                 )}
 
@@ -330,14 +481,69 @@ const FacultyDashboard = () => {
                             {(() => {
                                 // Calculate schedule for selected day
                                 const dayClasses = [];
+
+                                // A. Regular Classes
                                 subjects.forEach(subject => {
-                                    if (subject.semesterId && timetables[subject.semesterId] && timetables[subject.semesterId][selectedDay]) {
-                                        timetables[subject.semesterId][selectedDay].forEach(slot => {
-                                            if (slot.subjectId === subject.id) {
-                                                dayClasses.push({ ...subject, ...slot });
-                                            }
-                                        });
+                                    // DEBUG LOGS (Active)
+                                    // console.log("WeeklySchedule: Processing Subject:", subject.name, subject.id, "Sem:", subject.semesterId);
+                                    if (subject.semesterId && timetables[subject.semesterId]) {
+                                        const daySlots = timetables[subject.semesterId][selectedDay];
+                                        // console.log(`WeeklySchedule: Slots for ${selectedDay} (Sem ${subject.semesterId}):`, daySlots ? daySlots.length : 'None');
+
+                                        if (daySlots) {
+                                            daySlots.forEach(slot => {
+                                                // console.log(`  - Slot: ${slot.timeRange} | Subject: ${slot.subjectname} (${slot.subjectId}) vs My Subject: (${subject.id})`);
+                                                if (slot.subjectId === subject.id) {
+                                                    dayClasses.push({ ...subject, ...slot, isSubstitution: false });
+                                                }
+                                            });
+                                        }
                                     }
+                                });
+
+                                // B. Substitutions (For Selected Day THIS WEEK)
+                                // We need to determine the date of "This Week's [SelectedDay]"
+                                const today = new Date();
+                                const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+                                const currentDayIndex = today.getDay(); // 0-6
+                                const selectedDayIndex = days.indexOf(selectedDay);
+
+                                // Calculate date for the selected day in current week
+                                // Note: "Current Week" logic can vary. Let's assume broad "Next 7 days" or "This ISO Week".
+                                // Simple match: If selectedDay is today, match today.
+                                // If selectedDay is future, match future date. 
+                                // If selectedDay is past, match past date (or next week? usually past in current week).
+                                // Let's stick to "Current Week" starts Sunday or Monday.
+
+                                // Let's simplified approach: Match any substitution that has the same Weekday Name
+                                // AND is within a reasonable range (e.g., +/- 7 days from now).
+                                // A better approach is strictly "This Week (Sun-Sat)".
+
+                                const diff = selectedDayIndex - currentDayIndex;
+                                const targetDate = new Date(today);
+                                targetDate.setDate(today.getDate() + diff);
+
+                                const tYear = targetDate.getFullYear();
+                                const tMonth = String(targetDate.getMonth() + 1).padStart(2, '0');
+                                const tDay = String(targetDate.getDate()).padStart(2, '0');
+                                const targetDateString = `${tYear}-${tMonth}-${tDay}`;
+
+                                const relevantSubs = substitutions.filter(s => s.date === targetDateString);
+                                relevantSubs.forEach(sub => {
+                                    dayClasses.push({
+                                        id: sub.id,
+                                        name: sub.subjectName || 'Substituted Class',
+                                        code: sub.subjectCode || 'SUB',
+                                        semesterNo: sub.semesterNo || '?',
+                                        timeRange: sub.timeRange,
+                                        periodIndex: sub.periodIndex,
+                                        isSubstitution: true,
+                                        originalFacultyName: sub.originalFacultyName,
+                                        semesterId: sub.semesterId || sub.classId,
+                                        subjectId: sub.subjectId,
+                                        date: sub.date,
+                                        status: 'active' // Ensure it appears in Attendance Modal
+                                    });
                                 });
                                 // Sort by time
                                 dayClasses.sort((a, b) => {
@@ -383,11 +589,26 @@ const FacultyDashboard = () => {
                                                 display: 'flex', flexDirection: 'column', alignItems: 'center',
                                                 minWidth: '80px'
                                             }}>
-                                                <span style={{ fontWeight: 700, fontSize: '0.9rem' }}>{cls.timeRange.split(' - ')[0]}</span>
-                                                <span style={{ fontSize: '0.75rem', opacity: 0.7 }}>Start</span>
+                                                <span style={{ fontWeight: 800, fontSize: '1.2rem' }}>P{cls.periodIndex !== undefined ? cls.periodIndex + 1 : '?'}</span>
+                                                <span style={{ fontSize: '0.7rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Period</span>
                                             </div>
                                             <div>
-                                                <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem', fontWeight: 600 }}>{cls.name}</h3>
+                                                <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    {cls.name}
+                                                    {cls.isSubstitution && (
+                                                        <span style={{
+                                                            fontSize: '0.7rem',
+                                                            background: '#f59e0b',
+                                                            color: 'white',
+                                                            padding: '0.2rem 0.5rem',
+                                                            borderRadius: '0.5rem',
+                                                            textTransform: 'uppercase',
+                                                            letterSpacing: '0.05em'
+                                                        }}>
+                                                            Sub
+                                                        </span>
+                                                    )}
+                                                </h3>
                                                 <div style={{ display: 'flex', gap: '1rem', marginTop: '0.25rem', fontSize: '0.9rem', color: '#94a3b8' }}>
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                         <Book size={14} /> {cls.code}
@@ -395,6 +616,11 @@ const FacultyDashboard = () => {
                                                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                         <Layers size={14} /> Sem {cls.semesterNo || 'N/A'}
                                                     </span>
+                                                    {cls.isSubstitution && (
+                                                        <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>
+                                                            (For {cls.originalFacultyName})
+                                                        </span>
+                                                    )}
                                                 </div>
                                             </div>
                                         </div>
@@ -403,7 +629,7 @@ const FacultyDashboard = () => {
                                             background: 'rgba(255,255,255,0.05)', color: '#94a3b8',
                                             fontSize: '0.85rem'
                                         }}>
-                                            {cls.timeRange}
+                                            {formatTimeRange(cls.timeRange)}
                                         </div>
                                     </motion.div>
                                 ));
@@ -501,10 +727,10 @@ const FacultyDashboard = () => {
                         )}
                     </motion.div>
                 </motion.div>
-            </motion.div>
+            </motion.div >
 
             {/* Attendance Modal */}
-            <AnimatePresence>
+            < AnimatePresence >
                 {showAttendanceModal && selectedClassForAttendance && (
                     <AttendanceModal
                         isOpen={showAttendanceModal}
@@ -512,7 +738,7 @@ const FacultyDashboard = () => {
                         courses={[{ ...selectedClassForAttendance, status: 'active' }]}
                     />
                 )}
-            </AnimatePresence>
+            </AnimatePresence >
         </>
     );
 };

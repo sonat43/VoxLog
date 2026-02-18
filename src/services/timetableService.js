@@ -4,8 +4,10 @@ import {
     doc,
     setDoc,
     getDoc,
+    getDocs,
     serverTimestamp
 } from 'firebase/firestore';
+import { getFacultyAssignmentsByFaculty } from './academicService';
 
 /**
  * Saves a timetable for a specific semester.
@@ -134,4 +136,61 @@ export const generateTimetable = (subjects) => {
     });
 
     return schedule;
+};
+
+// Start of Added Function
+
+
+/**
+ * Get specific schedule for a faculty on a specific date.
+ * Allows identifying exactly which classes are impacted by leave.
+ */
+export const getFacultyScheduleForDate = async (facultyId, dateString) => {
+    try {
+        console.log(`[DEBUG] getFacultyScheduleForDate: ${facultyId} on ${dateString}`);
+        // 1. Get Faculty's Subjects
+        const assignments = await getFacultyAssignmentsByFaculty(facultyId);
+        console.log(`[DEBUG] Assignments found for ${facultyId}:`, assignments);
+        if (assignments.length === 0) return [];
+
+        const subjectIds = assignments.map(a => a.subjectId);
+
+        // 2. Scan all Timetables
+        // Optimization: In production, we should filter by semesterIds linked to subjects.
+        const timetablesSnap = await getDocs(collection(db, "timetables"));
+
+        // Robust Date Parsing (Fix for timezone issues)
+        // dateString is "YYYY-MM-DD"
+        const [year, month, day] = dateString.split('-').map(Number);
+        const targetDate = new Date(year, month - 1, day);
+        const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
+
+        console.log(`[DEBUG] Checking timetables for day: ${dayName} (${dateString})`);
+
+        const mySlots = [];
+
+        timetablesSnap.docs.forEach(doc => {
+            const semesterId = doc.id;
+            const schedule = doc.data().schedule;
+
+            if (schedule && schedule[dayName]) {
+                schedule[dayName].forEach(slot => {
+                    if (subjectIds.includes(slot.subjectId)) {
+                        mySlots.push({
+                            ...slot,
+                            semesterId,
+                            date: dateString
+                        });
+                    }
+                });
+            }
+        });
+
+        console.log(`[DEBUG] Found ${mySlots.length} slots for faculty.`);
+        return mySlots;
+
+    } catch (error) {
+        console.error("Error fetching faculty schedule:", error);
+        return [];
+    }
 };

@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Users, Clock } from 'lucide-react';
 
-const CourseCard = ({ courseCode, courseName, section, studentCount, status, onAction }) => {
+const CourseCard = ({ courseCode, courseName, section, studentCount, status, statusMessage, onAction }) => {
     const isActive = status === 'active';
 
     return (
@@ -18,21 +18,23 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, onA
                 position: 'relative'
             }}
         >
-            {/* Status Badge */}
-            <div style={{
-                position: 'absolute',
-                top: '1rem',
-                right: '1rem',
-                padding: '0.25rem 0.75rem',
-                borderRadius: '999px',
-                fontSize: '0.75rem',
-                fontWeight: 600,
-                background: isActive ? 'rgba(16, 185, 129, 0.15)' : 'rgba(107, 114, 128, 0.1)',
-                color: isActive ? 'var(--color-success)' : 'var(--color-text-muted)',
-                border: `1px solid ${isActive ? 'rgba(16, 185, 129, 0.3)' : 'rgba(107, 114, 128, 0.2)'}`
-            }}>
-                {isActive ? 'Active' : 'Disabled'}
-            </div>
+            {/* Status Badge - Only show if Active */}
+            {isActive && (
+                <div style={{
+                    position: 'absolute',
+                    top: '1rem',
+                    right: '1rem',
+                    padding: '0.25rem 0.75rem',
+                    borderRadius: '999px',
+                    fontSize: '0.75rem',
+                    fontWeight: 600,
+                    background: 'rgba(16, 185, 129, 0.15)',
+                    color: 'var(--color-success)',
+                    border: '1px solid rgba(16, 185, 129, 0.3)'
+                }}>
+                    Active
+                </div>
+            )}
 
             <div style={{ padding: '1.5rem' }}>
                 <div style={{
@@ -77,8 +79,7 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, onA
                 </div>
 
                 <button
-                    onClick={() => isActive && onAction()}
-                    disabled={!isActive}
+                    onClick={onAction}
                     style={{
                         width: '100%',
                         padding: '0.75rem',
@@ -87,7 +88,7 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, onA
                         border: isActive ? 'none' : '1px solid var(--color-border)',
                         borderRadius: '0.5rem',
                         fontWeight: 600,
-                        cursor: isActive ? 'pointer' : 'not-allowed',
+                        cursor: 'pointer',
                         transition: 'background 0.2s',
                         display: 'flex',
                         alignItems: 'center',
@@ -95,13 +96,7 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, onA
                         gap: '0.5rem'
                     }}
                 >
-                    {isActive ? (
-                        <>
-                            <Clock size={16} /> Take Attendance
-                        </>
-                    ) : (
-                        'Not Scheduled Now'
-                    )}
+                    <Clock size={16} /> {isActive ? "Take Attendance" : "Take Attendance (Manual)"}
                 </button>
             </div>
         </motion.div>

@@ -1,0 +1,22 @@
+EMAILJS TEMPLATE SETUP INSTRUCTIONS
+
+1. Go to your EmailJS Dashboard > Email Templates > Create New Template.
+
+2. In the "Subject" field, paste this:
+   {{subject}}
+
+3. In the "Content / Body" field, delete everything there and paste ONLY this line:
+   {{{message}}}
+
+   (Note: You MUST use 3 curly braces {{{ }}} so the HTML design renders correctly.)
+
+4. Save the Template.
+
+---------------------------------------------------
+
+HOW IT WORKS:
+Our application generates the full email content (with the blue header, table of details, Class Name, Date, Time, etc.) automatically in the code.
+
+By using {{{message}}}, you are telling EmailJS to just display the beautiful email we designed, filling in all the details dynamically.
+
+You do NOT need to manually type "Class: {{class_name}}" in EmailJS. The code handles it all for a professional look.

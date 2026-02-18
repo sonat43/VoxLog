@@ -10,6 +10,7 @@ const LoginCard = () => {
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [emailError, setEmailError] = useState('');
     const [successMsg, setSuccessMsg] = useState('');
     const [isResetMode, setIsResetMode] = useState(false);
 
@@ -84,11 +85,18 @@ const LoginCard = () => {
                             type="email"
                             placeholder="user@university.edu"
                             value={email}
-                            onChange={(e) => setEmail(e.target.value)}
+                            onChange={(e) => {
+                                const val = e.target.value;
+                                setEmail(val);
+                                if (val && !/\S+@\S+\.\S+/.test(val)) setEmailError("Invalid email format");
+                                else setEmailError("");
+                            }}
                             required
-                            className="glass-input"
+                            className={`glass-input ${emailError ? 'border-red-500' : ''}`}
+                            style={{ border: emailError ? '1px solid #ef4444' : undefined }}
                         />
                     </div>
+                    {emailError && <div style={{ color: '#ef4444', fontSize: '0.75rem', marginTop: '4px' }}>{emailError}</div>}
                 </div>
 
                 {!isResetMode && (

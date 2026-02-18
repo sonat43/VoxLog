@@ -16,6 +16,8 @@ import {
     Users
 } from 'lucide-react';
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
+import { db } from '../services/firebase';
+import { collection, query, where, getDocs } from 'firebase/firestore';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }) => (
     <motion.button
@@ -65,12 +67,29 @@ const DashboardLayout = ({ children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    React.useEffect(() => {
+        if (!user?.uid) return;
+        const fetchUnread = async () => {
+            try {
+                const q = query(collection(db, "notifications"), where("userId", "==", user.uid), where("read", "==", false));
+                const snap = await getDocs(q);
+                setUnreadCount(snap.size);
+            } catch (e) {
+                console.error("Failed to fetch notifications", e);
+            }
+        };
+        fetchUnread();
+    }, [user]);
 
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/faculty/dashboard' },
         { icon: BookOpen, label: 'My Courses', path: '/faculty/courses' },
         { icon: Users, label: 'My Class', path: '/faculty/my-class' },
-        { icon: ClipboardCheck, label: 'Start Attendance', path: '/faculty/attendance', primary: true },
+        { icon: ClipboardCheck, label: 'Leave Management', path: '/faculty/leave-management' },
+        { icon: Users, label: 'Substitutions', path: '/faculty/substitutions' },
+
         { icon: History, label: 'History', path: '/faculty/history' },
 
         { icon: User, label: 'Profile', path: '/faculty/profile' },
@@ -185,15 +204,26 @@ const DashboardLayout = ({ children }) => {
                             position: 'relative'
                         }}>
                             <Bell size={20} />
-                            <span style={{
-                                position: 'absolute',
-                                top: -2,
-                                right: -2,
-                                width: '8px',
-                                height: '8px',
-                                background: 'var(--color-error)',
-                                borderRadius: '50%'
-                            }} />
+                            {unreadCount > 0 && (
+                                <span style={{
+                                    position: 'absolute',
+                                    top: -4,
+                                    right: -4,
+                                    minWidth: '16px',
+                                    height: '16px',
+                                    background: 'var(--color-error)',
+                                    borderRadius: '50%',
+                                    color: 'white',
+                                    fontSize: '0.7rem',
+                                    fontWeight: 'bold',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: '2px'
+                                }}>
+                                    {unreadCount}
+                                </span>
+                            )}
                         </button>
 
                         <div style={{

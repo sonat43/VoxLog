@@ -15,7 +15,9 @@ import {
     Calendar,
     Library,
     UserCheck,
-    Clock
+
+    Clock,
+    ClipboardCheck as layers_sub_icon
 } from 'lucide-react';
 
 const Sidebar = ({ isOpen, toggleSidebar }) => {
@@ -37,7 +39,12 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { path: '/admin-dashboard/academic-timetable', icon: Clock, label: 'Class Timetable' },
 
         // Operations
-        { path: '/admin-dashboard/attendance-records', icon: FileText, label: 'Attendance Records' },
+        // Operations
+        { path: '/admin-dashboard/attendance-records', icon: FileText, label: 'Student Attendance' },
+        { path: '/admin-dashboard/leaves', icon: layers_sub_icon, label: 'Leave Approvals' },
+        { path: '/admin-dashboard/substitutions', icon: UserCheck, label: 'Substitutions' },
+        { path: '/admin-dashboard/master-calendar', icon: Calendar, label: 'Master Calendar' },
+
 
         // Settings
         { path: '/admin-dashboard/settings', icon: Settings, label: 'Settings & Config' },

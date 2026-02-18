@@ -1,4 +1,4 @@
-import { db } from './firebase';
+import { db, storage } from './firebase';
 import {
     collection,
     doc,
@@ -7,11 +7,23 @@ import {
     setDoc,
     addDoc,
     updateDoc,
+    deleteDoc,
     query,
     where,
     serverTimestamp,
-    orderBy
+    orderBy,
+    writeBatch
 } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+
+const getBackendUrl = () => {
+    // If we're on localhost, assume backend is too. 
+    // Otherwise use the current hostname (useful for mobile testing on same network)
+    const hostname = window.location.hostname;
+    return `http://${hostname}:5000`;
+};
+
+const BACKEND_URL = getBackendUrl();
 
 // ===========================
 // SYLLABUS MANAGEMENT
@@ -207,67 +219,78 @@ export const getDashboardStats = async (facultyId) => {
         // 2. Iterate Subjects
         for (const subject of subjects) {
             // --- Syllabus Progress ---
-            const syllabus = await getSyllabus(subject.id);
-            if (syllabus && syllabus.topics) {
-                totalSyllabusTopics += syllabus.topics.length;
-                completedSyllabusTopics += syllabus.topics.filter(t => t.completed).length;
+            try {
+                const syllabus = await getSyllabus(subject.id);
+                if (syllabus && syllabus.topics) {
+                    totalSyllabusTopics += syllabus.topics.length;
+                    completedSyllabusTopics += syllabus.topics.filter(t => t.completed).length;
+                }
+            } catch (err) {
+                console.warn("Syllabus fetch failed for", subject.name, err);
             }
 
             // --- Assessments & Grading ---
-            const assessments = await getAssessments(subject.id);
+            try {
+                const assessments = await getAssessments(subject.id);
 
-            // Filter only published assessments? Assuming all fetched are relevant.
+                // Get Student Count for this Semester
+                if (subject.semesterId) {
+                    if (semesterStudentCounts[subject.semesterId] === undefined) {
+                        const qStudents = query(collection(db, "students"), where("semesterId", "==", subject.semesterId));
+                        const snap = await getDocs(qStudents);
+                        semesterStudentCounts[subject.semesterId] = snap.size;
+                    }
+                    const studentCount = semesterStudentCounts[subject.semesterId];
 
-            // Get Student Count for this Semester
-            if (subject.semesterId) {
-                if (semesterStudentCounts[subject.semesterId] === undefined) {
-                    const qStudents = query(collection(db, "students"), where("semesterId", "==", subject.semesterId));
-                    const snap = await getDocs(qStudents);
-                    semesterStudentCounts[subject.semesterId] = snap.size;
-                }
-                const studentCount = semesterStudentCounts[subject.semesterId];
+                    // Calculate Pending Grading
+                    for (const assessment of assessments) {
+                        const grades = await getGradesForAssessment(assessment.id);
+                        const gradedCount = grades.length;
 
-                // Calculate Pending Grading
-                for (const assessment of assessments) {
-                    const grades = await getGradesForAssessment(assessment.id);
-                    const gradedCount = grades.length;
+                        // Pending = Total Students - Graded Count
+                        const pending = Math.max(0, studentCount - gradedCount);
+                        totalPendingGrading += pending;
 
-                    // Pending = Total Students - Graded Count
-                    // Ensure non-negative (incase student count changed)
-                    const pending = Math.max(0, studentCount - gradedCount);
-                    totalPendingGrading += pending;
-
-                    // Add to recent activity (simple logic: created recently)
-                    const diffDays = (new Date() - assessment.createdAt.toDate()) / (1000 * 3600 * 24);
-                    if (diffDays < 7) {
-                        recentActivity.push({
-                            type: 'assessment',
-                            title: assessment.title,
-                            subject: subject.name,
-                            date: assessment.createdAt.toDate()
-                        });
+                        // Add to recent activity
+                        const diffDays = (new Date() - assessment.createdAt.toDate()) / (1000 * 3600 * 24);
+                        if (diffDays < 7) {
+                            recentActivity.push({
+                                type: 'assessment',
+                                title: assessment.title,
+                                subject: subject.name,
+                                date: assessment.createdAt.toDate()
+                            });
+                        }
                     }
                 }
-            }
 
-            // --- At Risk (Reuse existing logic per subject) ---
-            const atRiskInSubject = await getAtRiskStudents(subject.id);
-            totalAtRisk += atRiskInSubject.length;
+                // --- At Risk (Assessments dependent) ---
+                const atRiskInSubject = await getAtRiskStudents(subject.id);
+                totalAtRisk += atRiskInSubject.length;
+
+            } catch (err) {
+                // console.warn("Assessment/Stats fetch failed (likely missing index):", err.message);
+                // Swallow error so other stats (like syllabus) still show
+            }
         }
 
         // Fetch Recent Attendance
-        const recentAttendance = await getAttendanceHistory(facultyId); // We just added this function
-        recentAttendance.forEach(att => {
-            const diffDays = (new Date() - att.timestamp.toDate()) / (1000 * 3600 * 24);
-            if (diffDays < 7) {
-                recentActivity.push({
-                    type: 'attendance',
-                    title: `Attendance: ${att.mode === 'voice' ? 'Voice' : 'Camera'}`,
-                    subject: att.subjectName,
-                    date: att.timestamp.toDate()
-                });
-            }
-        });
+        try {
+            const recentAttendance = await getAttendanceHistory(facultyId);
+            recentAttendance.forEach(att => {
+                const diffDays = (new Date() - att.timestamp.toDate()) / (1000 * 3600 * 24);
+                if (diffDays < 7) {
+                    recentActivity.push({
+                        type: 'attendance',
+                        title: `Attendance: ${att.mode === 'voice' ? 'Voice' : 'Camera'}`,
+                        subject: att.subjectName,
+                        date: att.timestamp.toDate()
+                    });
+                }
+            });
+        } catch (err) {
+            console.warn("Attendance history fetch failed (likely missing index):", err.message);
+        }
 
         // 3. Calculate Syllabus %
         const syllabusProgress = totalSyllabusTopics > 0
@@ -294,14 +317,135 @@ export const getDashboardStats = async (facultyId) => {
 
 export const saveAttendanceSession = async (sessionData) => {
     try {
-        await addDoc(collection(db, "attendance_history"), {
+        const batch = writeBatch(db);
+
+        // 1. Create Session Record
+        const sessionRef = doc(collection(db, "attendance_history"));
+        batch.set(sessionRef, {
             ...sessionData,
+            role: sessionData.role || 'Regular',
             timestamp: serverTimestamp()
         });
-        return { success: true };
+
+        // 2. Fetch Students for this Semester
+        if (sessionData.semesterId) {
+            const qStudents = query(
+                collection(db, "students"),
+                where("semesterId", "==", sessionData.semesterId)
+            );
+            const studentSnap = await getDocs(qStudents);
+
+            const todayStr = sessionData.dateString || new Date().toISOString().split('T')[0];
+
+            // Format time for slot
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+
+            const presentIds = sessionData.presentStudentIds || [];
+
+            studentSnap.docs.forEach(studentDoc => {
+                const student = studentDoc.data();
+                const recordRef = doc(collection(db, "attendance_records"));
+
+                // If presentIds is provided, use it to determine status. 
+                // Otherwise fall back to 'Present' (for legacy or simple modes)
+                let status = 'Absent';
+                if (sessionData.presentStudentIds) {
+                    status = presentIds.includes(studentDoc.id) ? 'Present' : 'Absent';
+                } else {
+                    status = 'Present';
+                }
+
+                batch.set(recordRef, {
+                    studentId: studentDoc.id,
+                    studentName: student.name,
+                    regNo: student.regNo,
+                    subjectId: sessionData.subjectId,
+                    subjectName: sessionData.subjectName,
+                    semesterId: sessionData.semesterId,
+                    dateString: todayStr,
+                    slotTime: timeString,
+                    status: status,
+                    markedBy: sessionData.facultyId,
+                    mode: sessionData.mode,
+                    sessionId: sessionRef.id,
+                    createdAt: serverTimestamp()
+                });
+            });
+        }
+
+        await batch.commit();
+        return { success: true, sessionId: sessionRef.id };
+
     } catch (error) {
         console.error("Error saving attendance session:", error);
         throw error;
+    }
+};
+
+// --- Smart Attendance API Calls ---
+
+export const getHeadcount = async (imageBlob) => {
+    const formData = new FormData();
+    formData.append('image', imageBlob, 'capture.jpg');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/count-students`, {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error('Failed to get headcount');
+        return await response.json();
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') throw new Error('Headcount request timed out. Check connection.');
+        throw err;
+    }
+};
+
+export const processRollCall = async (audioBlob) => {
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.wav');
+
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for audio processing
+
+    try {
+        const response = await fetch(`${BACKEND_URL}/process-rollcall`, {
+            method: 'POST',
+            body: formData,
+            signal: controller.signal
+        });
+
+        clearTimeout(timeoutId);
+        if (!response.ok) throw new Error('Failed to process roll call');
+        return await response.json();
+    } catch (err) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') throw new Error('Roll call processing timed out.');
+        throw err;
+    }
+};
+
+export const getTodayAttendanceSessions = async (facultyId) => {
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        const q = query(
+            collection(db, "attendance_history"),
+            where("facultyId", "==", facultyId),
+            where("dateString", "==", todayStr)
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching today's attendance sessions:", error);
+        return [];
     }
 };
 
@@ -319,3 +463,87 @@ export const getAttendanceHistory = async (facultyId) => {
         return [];
     }
 };
+
+// ===========================
+// RESOURCE CENTER
+// ===========================
+
+export const uploadResource = async (subjectId, resourceData, file) => {
+    try {
+        let downloadUrl = resourceData.url;
+        let storageRefPath = null;
+
+        // 1. Upload File if present
+        if (file) {
+            // Create a unique path: resources/{subjectId}/{timestamp}_{filename}
+            const uniqueName = `${Date.now()}_${file.name}`;
+            storageRefPath = `resources/${subjectId}/${uniqueName}`;
+            const storageRef = ref(storage, storageRefPath);
+
+            await uploadBytes(storageRef, file);
+            downloadUrl = await getDownloadURL(storageRef);
+        }
+
+        // 2. Save Metadata to Firestore
+        const docRef = await addDoc(collection(db, "course_resources"), {
+            subjectId,
+            title: resourceData.title,
+            type: resourceData.type,
+            url: downloadUrl,
+            storageRefPath: storageRefPath || null, // Create if file upload
+            fileName: file ? file.name : null,
+            createdAt: serverTimestamp()
+        });
+
+        return { id: docRef.id, url: downloadUrl };
+
+    } catch (error) {
+        console.error("Error uploading resource:", error);
+        throw error;
+    }
+};
+
+export const getSubjectResources = async (subjectId) => {
+    try {
+        const q = query(
+            collection(db, "course_resources"),
+            where("subjectId", "==", subjectId),
+            orderBy("createdAt", "desc")
+        );
+        const querySnapshot = await getDocs(q);
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                date: data.createdAt ? data.createdAt.toDate().toISOString().split('T')[0] : 'Just now'
+            };
+        });
+    } catch (error) {
+        console.error(`Error fetching resources for subject ${subjectId}:`, error);
+        // Fallback or empty on error (e.g. missing index)
+        if (error.code === 'failed-precondition') {
+            console.warn("Missing index for resources. Returning empty for now.");
+        }
+        return [];
+    }
+};
+
+export const deleteResource = async (resourceId, storageRefPath) => {
+    try {
+        // 1. Delete from Firestore
+        await deleteDoc(doc(db, "course_resources", resourceId));
+
+        // 2. Delete from Storage if applicable
+        if (storageRefPath) {
+            const storageRef = ref(storage, storageRefPath);
+            await deleteObject(storageRef);
+        }
+        return true;
+    } catch (error) {
+        console.error("Error deleting resource:", error);
+        throw error;
+    }
+};
+
+

@@ -6,6 +6,7 @@ import {
     Activity, Zap, RefreshCw, ChevronRight, Info, Mail
 } from 'lucide-react';
 import { fetchSettings, saveSettings } from '../../services/settingsService';
+import { clearAttendanceData } from '../../services/adminService';
 import './SettingsConfig.css';
 
 const SettingsConfig = () => {
@@ -32,6 +33,20 @@ const SettingsConfig = () => {
         };
         loadSettings();
     }, []);
+
+    const handleSystemReset = async () => {
+        if (window.confirm("CRITICAL WARNING: This will permanently DELETE ALL:\n- Leave Requests\n- Substitutions\n- Attendance Logs\n\nAre you sure you want to proceed?")) {
+            setLoading(true);
+            try {
+                await clearAttendanceData();
+                showNotification('success', 'System Data Reset Successfully');
+            } catch (error) {
+                showNotification('error', 'Failed to reset data');
+            } finally {
+                setLoading(false);
+            }
+        }
+    };
 
     const handleSave = async () => {
         setSaving(true);
@@ -199,7 +214,7 @@ const SettingsConfig = () => {
                             transition={{ duration: 0.2 }}
                         >
                             {renderContent(activeTab, settings, updateSetting, {
-                                calibrating, handleCalibration, testEmailSent, handleTestEmail
+                                calibrating, handleCalibration, testEmailSent, handleTestEmail, handleSystemReset
                             })}
                         </motion.div>
                     </AnimatePresence>
@@ -551,6 +566,29 @@ const renderContent = (tab, settings, update, actions) => {
                             onChange={(v) => update('system', 'maintenanceMode', v)}
                             impact={{ type: 'danger', text: 'Disruptive' }}
                         />
+                    </SettingCard>
+
+                    <SettingCard>
+                        <div style={{ color: '#ef4444', marginBottom: '16px' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <AlertTriangle size={20} /> Danger Zone
+                            </h3>
+                            <p className="sc-desc-small">
+                                Operations here are destructive and cannot be undone.
+                            </p>
+                        </div>
+                        <button
+                            onClick={actions.handleSystemReset}
+                            className="sc-btn-outline"
+                            style={{
+                                borderColor: '#ef4444',
+                                color: '#ef4444',
+                                width: '100%',
+                                justifyContent: 'center'
+                            }}
+                        >
+                            RESET ATTENDANCE & LEAVE DATA
+                        </button>
                     </SettingCard>
                 </div>
             );

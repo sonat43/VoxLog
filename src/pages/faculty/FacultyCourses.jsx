@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AnimatePresence } from 'framer-motion';
 import AttendanceModal from '../../components/dashboard/AttendanceModal';
+import SubstitutionManagement from './SubstitutionManagement';
 
 import CourseCard from '../../components/dashboard/CourseCard';
 import LoadingScreen from '../../components/LoadingScreen';
@@ -23,7 +24,9 @@ const FacultyCourses = () => {
     const [timetables, setTimetables] = useState({});
     const [activeSubjectIds, setActiveSubjectIds] = useState([]);
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+    const [showSubstitutionModal, setShowSubstitutionModal] = useState(false);
     const [selectedCourseForAttendance, setSelectedCourseForAttendance] = useState(null);
+    const [courseStatusMap, setCourseStatusMap] = useState({});
 
     useEffect(() => {
         const fetchData = async () => {
@@ -32,7 +35,6 @@ const FacultyCourses = () => {
             setLoading(true);
             try {
                 // Fetch all raw data we might need
-                // Ideally this should be more targeted, but for now we fetch lists to map
                 const [
                     assignments,
                     allSubjects,
@@ -123,18 +125,37 @@ const FacultyCourses = () => {
             const currentTimeVal = currentHour * 60 + currentMinute;
 
             const activeIds = [];
+            const statusMap = {}; // subjectId -> statusMessage
 
             myCourses.forEach(course => {
-                if (!course.semesterId || !timetables[course.semesterId]) return;
+                if (!course.semesterId || !timetables[course.semesterId]) {
+                    statusMap[course.subjectId] = "No Timetable Found";
+                    return;
+                }
 
-                const daySchedule = timetables[course.semesterId][currentDay];
-                if (!daySchedule) return;
+                // Case-insensitive day match
+                const schedule = timetables[course.semesterId];
+                const dayKey = Object.keys(schedule).find(k => k.toLowerCase() === currentDay.toLowerCase());
+
+                if (!dayKey || !schedule[dayKey]) {
+                    statusMap[course.subjectId] = `No classes on ${currentDay}`;
+                    return;
+                }
+
+                const daySchedule = schedule[dayKey];
+                let isNow = false;
+                let nextSlot = null;
+                let minDiff = Infinity;
 
                 // Check each slot
                 daySchedule.forEach(slot => {
-                    // slot.timeRange format: "09:00 - 10:00"
-                    const [startStr, endStr] = slot.timeRange.split(' - ');
+                    if (slot.subjectId !== course.subjectId) return;
 
+                    // slot.timeRange format: "09:00 - 10:00"
+                    const parts = slot.timeRange.split('-').map(s => s.trim());
+                    if (parts.length !== 2) return;
+
+                    const [startStr, endStr] = parts;
                     const [startH, startM] = startStr.split(':').map(Number);
                     const [endH, endM] = endStr.split(':').map(Number);
 
@@ -142,15 +163,29 @@ const FacultyCourses = () => {
                     const endTimeVal = endH * 60 + endM;
 
                     if (currentTimeVal >= startTimeVal && currentTimeVal < endTimeVal) {
-                        // Time matches, check subject
-                        if (slot.subjectId === course.subjectId) {
-                            activeIds.push(course.subjectId);
+                        isNow = true;
+                    } else if (currentTimeVal < startTimeVal) {
+                        // Future slot today
+                        const diff = startTimeVal - currentTimeVal;
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            nextSlot = startStr;
                         }
                     }
                 });
+
+                if (isNow) {
+                    activeIds.push(course.subjectId);
+                    statusMap[course.subjectId] = "Class in Progress";
+                } else if (nextSlot) {
+                    statusMap[course.subjectId] = `Next: ${nextSlot}`;
+                } else {
+                    statusMap[course.subjectId] = "No more classes today";
+                }
             });
 
             setActiveSubjectIds(activeIds);
+            setCourseStatusMap(statusMap);
         };
 
         // Run immediately and then every minute
@@ -166,16 +201,37 @@ const FacultyCourses = () => {
         setShowAttendanceModal(true);
     };
 
-    // Loading state is now handled inside the main return to preserve layout
-    // if (loading) return <LoadingScreen />;
-
     return (
         <>
             <div style={{ maxWidth: '1200px', margin: '0 auto' }}>
-                <h1 style={{ color: 'white', marginBottom: '0.5rem', fontSize: '2rem' }}>Academic Overview</h1>
-                <p style={{ color: 'var(--color-text-muted)', marginBottom: '2rem' }}>
-                    Manage your assigned subjects and view class details.
-                </p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+                    <div>
+                        <h1 style={{ color: 'white', marginBottom: '0.5rem', fontSize: '2rem' }}>Academic Overview</h1>
+                        <p style={{ color: 'var(--color-text-muted)', marginBottom: '0' }}>
+                            Manage your assigned subjects and view class details.
+                        </p>
+                    </div>
+                    {myManagedClasses.length > 0 && (
+                        <button
+                            onClick={() => setShowSubstitutionModal(true)}
+                            style={{
+                                padding: '10px 20px',
+                                background: 'linear-gradient(135deg, #f59e0b 0%, #d97706 100%)',
+                                color: 'white',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                                boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)'
+                            }}
+                        >
+                            <Users size={18} /> Manage Substitutions
+                        </button>
+                    )}
+                </div>
 
                 {loading ? (
                     <div style={{ display: 'flex', justifyContent: 'center', padding: '4rem' }}>
@@ -252,6 +308,7 @@ const FacultyCourses = () => {
                                             section={course.section}
                                             studentCount={course.studentCount}
                                             status={activeSubjectIds.includes(course.subjectId) ? 'active' : 'inactive'}
+                                            statusMessage={courseStatusMap[course.subjectId]}
                                             onAction={() => handleTakeAttendance(course)}
                                         />
                                     ))}
@@ -268,7 +325,17 @@ const FacultyCourses = () => {
                     <AttendanceModal
                         isOpen={showAttendanceModal}
                         onClose={() => setShowAttendanceModal(false)}
-                        courses={[selectedCourseForAttendance]} // Pass as array as modal expects list but checking flow
+                        courses={[selectedCourseForAttendance]}
+                    />
+                )}
+            </AnimatePresence>
+
+            {/* Substitution Modal */}
+            <AnimatePresence>
+                {showSubstitutionModal && (
+                    <SubstitutionManagement
+                        isOpen={showSubstitutionModal}
+                        onClose={() => setShowSubstitutionModal(false)}
                     />
                 )}
             </AnimatePresence>

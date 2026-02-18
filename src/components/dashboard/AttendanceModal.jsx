@@ -1,25 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Mic, Camera, CheckCircle, AlertCircle, ArrowRight, ArrowLeft } from 'lucide-react';
+import { X, Mic, Camera, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, UserCheck } from 'lucide-react';
 import { saveAttendanceSession } from '../../services/facultyService';
+import { checkSubstitutionForAttendance } from '../../services/substitutionService';
 import { useAuth } from '../../context/AuthContext';
+import SmartAttendance from '../attendance/SmartAttendance';
+import Toast from '../common/Toast';
 
 const AttendanceModal = ({ isOpen, onClose, courses }) => {
     const { user } = useAuth();
     const [step, setStep] = useState(1);
     const [selectedCourse, setSelectedCourse] = useState(null);
-    const [mode, setMode] = useState(null); // 'voice' or 'camera'
+    const [mode, setMode] = useState(null); // 'voice', 'camera', or 'smart'
     const [aiConfidence, setAiConfidence] = useState(0);
+
+    // Substitution Internal State
+    const [isSubstitute, setIsSubstitute] = useState(false);
+    const [originalFacultyId, setOriginalFacultyId] = useState(null);
+    const [verifying, setVerifying] = useState(false);
+    const [toast, setToast] = useState(null);
 
     // Reset state on open
     useEffect(() => {
         if (isOpen) {
-            setStep(1);
-            setSelectedCourse(null);
-            setMode(null);
+            if (courses && courses.length === 1 && courses[0].status === 'active') {
+                setSelectedCourse(courses[0]);
+                setMode('smart');
+                setStep(3);
+            } else {
+                setStep(1);
+                setSelectedCourse(null);
+                setMode(null);
+            }
             setAiConfidence(0);
+            setIsSubstitute(false);
+            setOriginalFacultyId(null);
+            setVerifying(false);
         }
-    }, [isOpen]);
+    }, [isOpen, courses]);
 
     // Simulate AI Confidence Calculation
     useEffect(() => {
@@ -37,7 +55,47 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
         }
     }, [step]);
 
-    const handleNext = () => setStep(step + 1);
+    const handleNext = async () => {
+        if (step === 1) {
+            // Verify Substitution if User is not the Regular faculty (Note: In this UI, 'courses' passed are usually assigned to user. 
+            // EXCEPT if we update FacultyCourses to optionally include substituted courses. 
+            // THE PLAN: We decided to verify here anyway for security or logic flow.
+
+            // Check if there is an active substitution for THIS course TODAY
+            // dateString = Today
+            setVerifying(true);
+            try {
+                // Use Local Date string (YYYY-MM-DD)
+                const d = new Date();
+                const year = d.getFullYear();
+                const month = String(d.getMonth() + 1).padStart(2, '0');
+                const day = String(d.getDate()).padStart(2, '0');
+                const today = `${year}-${month}-${day}`;
+
+                const sub = await checkSubstitutionForAttendance(today, null, null, selectedCourse.subjectId);
+
+                if (sub) {
+                    if (sub.substituteFacultyId === user.uid) {
+                        setIsSubstitute(true);
+                        setOriginalFacultyId(sub.originalFacultyId || "Unknown"); // Or fetch from substitution doc if we saved it
+                        setToast({ message: "Recognized as Substitute Teacher.", type: 'success' });
+                    } else if (sub.originalFacultyId === user.uid) {
+                        // Original teacher trying to take attendance when sub exists?
+                        // Allow it, but maybe warn? For now, standard flow.
+                        setToast({ message: "Warning: A substitute is assigned for this class.", type: 'warning' });
+                    }
+                }
+            } catch (err) {
+                console.error("Verification check failed", err);
+            } finally {
+                setVerifying(false);
+                setStep(step + 1);
+            }
+        } else {
+            setStep(step + 1);
+        }
+    };
+
     const handleBack = () => setStep(step - 1);
 
     if (!isOpen) return null;
@@ -140,10 +198,18 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                                 transition: 'all 0.2s'
                                             }}
                                         >
-                                            <div style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{course.code}</div>
-                                            <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{course.name}</div>
-                                            <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '0.5rem', color: 'var(--color-secondary)' }}>
-                                                Section {course.section}
+                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{course.code}</span>
+                                                    <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                                                    <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>
+                                                        Period {course.periodIndex !== undefined ? course.periodIndex + 1 : '?'}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{course.name}</div>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', color: 'var(--color-secondary)' }}>
+                                                    Section {course.section}
+                                                </div>
                                             </div>
                                         </button>
                                     ))}
@@ -157,6 +223,17 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                             <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-secondary)' }}>
                                 Step 2: Choose Mode
                             </h3>
+
+                            {isSubstitute && (
+                                <div style={{
+                                    padding: '10px', background: 'rgba(20, 184, 166, 0.1)',
+                                    color: '#14b8a6', borderRadius: '8px', marginBottom: '10px',
+                                    display: 'flex', alignItems: 'center', justifySelf: 'center', gap: '8px', margin: '0 auto'
+                                }}>
+                                    <UserCheck size={18} /> Acting as Substitute Teacher
+                                </div>
+                            )}
+
                             <div style={{ display: 'flex', gap: '1.5rem', justifyContent: 'center' }}>
                                 <button
                                     onClick={() => setMode('voice')}
@@ -212,11 +289,46 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                     </div>
                                     <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>AI Head Count</span>
                                 </button>
+                                <button
+                                    onClick={() => setMode('smart')}
+                                    style={{
+                                        flex: 1,
+                                        padding: '2rem',
+                                        border: mode === 'smart' ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                        background: mode === 'smart' ? 'var(--color-accent-light)' : 'transparent',
+                                        borderRadius: '1rem',
+                                        cursor: 'pointer',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '1rem',
+                                        transition: 'all 0.2s'
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '64px', height: '64px',
+                                        background: 'rgba(59, 130, 246, 0.1)',
+                                        borderRadius: '50%',
+                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                        color: '#3b82f6'
+                                    }}>
+                                        <Camera size={32} />
+                                    </div>
+                                    <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>Smart Attendance</span>
+                                    <span style={{ fontSize: '0.7rem', color: 'var(--color-text-muted)' }}>(Camera + Voice)</span>
+                                </button>
                             </div>
                         </div>
                     )}
 
-                    {step === 3 && (
+                    {step === 3 && mode === 'smart' && (
+                        <SmartAttendance
+                            course={selectedCourse}
+                            onClose={onClose}
+                        />
+                    )}
+
+                    {step === 3 && (mode === 'voice' || mode === 'camera') && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', gap: '1.5rem' }}>
                             <div style={{
                                 position: 'relative',
@@ -256,7 +368,9 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                     <CheckCircle size={20} color="var(--color-success)" />
                                 </div>
                                 <div>
-                                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>Ready to Start</div>
+                                    <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>
+                                        Period {selectedCourse?.periodIndex !== undefined ? selectedCourse.periodIndex + 1 : '?'} • Ready
+                                    </div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
                                         {selectedCourse?.code} - {selectedCourse?.name}
                                     </div>
@@ -290,7 +404,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                     {step < 3 ? (
                         <button
                             onClick={handleNext}
-                            disabled={(step === 1 && !selectedCourse) || (step === 2 && !mode)}
+                            disabled={(step === 1 && !selectedCourse) || (step === 2 && !mode) || verifying}
                             style={{
                                 padding: '0.75rem 1.5rem',
                                 borderRadius: '0.5rem',
@@ -302,24 +416,27 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
-                                opacity: ((step === 1 && !selectedCourse) || (step === 2 && !mode)) ? 0.5 : 1
+                                opacity: ((step === 1 && !selectedCourse) || (step === 2 && !mode) || verifying) ? 0.5 : 1
                             }}
                         >
-                            Next <ArrowRight size={16} />
+                            {verifying ? 'Verifying...' : <>Next <ArrowRight size={16} /></>}
                         </button>
-                    ) : (
+                    ) : mode === 'smart' ? null : (
                         <button
                             onClick={async () => {
                                 if (selectedCourse) {
                                     try {
                                         await saveAttendanceSession({
-                                            subjectId: selectedCourse.id,
+                                            subjectId: selectedCourse.subjectId,
+                                            semesterId: selectedCourse.semesterId,
                                             subjectName: selectedCourse.name,
                                             section: selectedCourse.section || 'N/A',
                                             mode: mode,
                                             confidence: aiConfidence,
                                             facultyId: user?.uid,
-                                            status: 'active'
+                                            status: 'active',
+                                            role: isSubstitute ? 'Substitute' : 'Regular',
+                                            originalFacultyId: originalFacultyId
                                         });
                                         onClose();
                                     } catch (error) {
@@ -344,6 +461,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                         </button>
                     )}
                 </div>
+                {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
             </motion.div>
         </div>
     );

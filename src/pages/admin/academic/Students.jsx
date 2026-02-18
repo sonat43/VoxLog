@@ -28,9 +28,47 @@ const Students = () => {
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [toast, setToast] = useState(null);
     const [formData, setFormData] = useState({ name: '', regNo: '', email: '' });
+    const [errors, setErrors] = useState({});
     const [bulkData, setBulkData] = useState('');
     const [bulkLogs, setBulkLogs] = useState([]);
     const [editingId, setEditingId] = useState(null);
+
+    const validateField = (name, value) => {
+        let error = "";
+        if (!value || value.toString().trim() === '') {
+            error = "Field required";
+        }
+        if (name === 'email' && value) {
+            if (!/\S+@\S+\.\S+/.test(value)) {
+                error = "Invalid email format";
+            }
+        }
+        return error;
+    };
+
+    const handleInputChange = (e) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({ ...prev, [name]: value }));
+
+        const error = validateField(name, value);
+        setErrors(prev => ({ ...prev, [name]: error }));
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        let isValid = true;
+        const fields = ['name', 'regNo', 'email'];
+
+        fields.forEach(field => {
+            const error = validateField(field, formData[field]);
+            if (error) {
+                newErrors[field] = error;
+                isValid = false;
+            }
+        });
+        setErrors(newErrors);
+        return isValid;
+    };
 
     // --- Data Fetching ---
 
@@ -359,7 +397,7 @@ const Students = () => {
                         setToast({ message: "Please select a specific Semester to enroll new students.", type: "info" });
                     }
                 } : null}
-                renderActions={renderActions}
+
             />
 
             {/* Bulk Button - Placed manually or integrated? DataTable API usually needs clean render. 
@@ -400,27 +438,36 @@ const Students = () => {
 
             {/* Add/Edit Modal */}
             <SimpleModal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingId ? "Edit Student Details" : "Enroll New Student"}>
-                <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                <form onSubmit={(e) => {
+                    e.preventDefault();
+                    if (validateForm()) handleCreateOrUpdate(e);
+                }} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div>
                         <label style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '6px', display: 'block' }}>Full Name</label>
                         <input
-                            required value={formData.name} onChange={e => setFormData({ ...formData, name: e.target.value })}
-                            style={inputStyle}
+                            name="name"
+                            required value={formData.name} onChange={handleInputChange}
+                            style={{ ...inputStyle, border: errors.name ? '1px solid #ef4444' : inputStyle.border }}
                         />
+                        {errors.name && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.name}</p>}
                     </div>
                     <div>
                         <label style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '6px', display: 'block' }}>Register Number</label>
                         <input
-                            required value={formData.regNo} onChange={e => setFormData({ ...formData, regNo: e.target.value })}
-                            style={inputStyle}
+                            name="regNo"
+                            required value={formData.regNo} onChange={handleInputChange}
+                            style={{ ...inputStyle, border: errors.regNo ? '1px solid #ef4444' : inputStyle.border }}
                         />
+                        {errors.regNo && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.regNo}</p>}
                     </div>
                     <div>
                         <label style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '6px', display: 'block' }}>Email Address</label>
                         <input
-                            required type="email" value={formData.email} onChange={e => setFormData({ ...formData, email: e.target.value })}
-                            style={inputStyle}
+                            name="email"
+                            required type="email" value={formData.email} onChange={handleInputChange}
+                            style={{ ...inputStyle, border: errors.email ? '1px solid #ef4444' : inputStyle.border }}
                         />
+                        {errors.email && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.email}</p>}
                     </div>
 
                     <button type="submit" style={{ marginTop: '10px', padding: '12px', borderRadius: '8px', background: '#14b8a6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>

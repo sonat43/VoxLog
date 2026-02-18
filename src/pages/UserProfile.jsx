@@ -33,6 +33,7 @@ const UserProfile = () => {
     const [loading, setLoading] = useState(false);
     const [status, setStatus] = useState(null);
     const [activeTab, setActiveTab] = useState('personal');
+    const [errors, setErrors] = useState({});
 
     // Premium Gold Accent Color for "Precious" feel
     const GOLD_ACCENT = '#fbbf24';
@@ -55,15 +56,81 @@ const UserProfile = () => {
                 qualifications: user.qualifications || '',
                 experience: user.experience || '',
                 joiningDate: user.joiningDate || '',
-                photoURL: user.photoURL || ''
+                photoURL: user.photoURL || '',
+                nationality: user.nationality || '',
+                maritalStatus: user.maritalStatus || '',
+                designation: user.designation || '',
+                specialization: user.specialization || '',
+                emergencyContactName: user.emergencyContactName || '',
+                emergencyContactRelation: user.emergencyContactRelation || '',
+                emergencyContactPhone: user.emergencyContactPhone || '',
+                linkedInProfile: user.linkedInProfile || '',
+                googleScholarProfile: user.googleScholarProfile || ''
             });
         }
+        setErrors({});
     }, [user, role]);
 
-    const handleChange = (e) => {
-        setFormData({ ...formData, [e.target.name]: e.target.value });
-        if (status) setStatus(null);
+    const validateField = (name, value) => {
+        let error = "";
+        const requiredFields = [
+            'gender', 'dateOfBirth', 'nationality', 'maritalStatus',
+            'phone', 'address', 'city', 'state', 'zipCode',
+            'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone'
+        ];
+
+        if (requiredFields.includes(name)) {
+            if (!value || value.toString().trim() === '') {
+                error = "Field required";
+            }
+        }
+
+        if (name === 'phone' || name === 'emergencyContactPhone') {
+            if (value) {
+                if (!/^\d{10}$/.test(value)) {
+                    error = "Must be 10 digits";
+                } else if (/^(\d)\1{9}$/.test(value)) {
+                    error = "Invalid pattern (repeating digits)";
+                }
+            }
+        }
+        return error;
     };
+
+    const handleChange = (e) => {
+        const { name, value } = e.target;
+        setFormData({ ...formData, [name]: value });
+        if (status) setStatus(null);
+
+        const error = validateField(name, value);
+        setErrors(prev => ({ ...prev, [name]: error }));
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        let isValid = true;
+
+        const editableFields = [
+            'gender', 'dateOfBirth', 'nationality', 'maritalStatus',
+            'phone', 'address', 'city', 'state', 'zipCode',
+            'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone',
+            'linkedInProfile', 'googleScholarProfile'
+        ];
+
+        editableFields.forEach(field => {
+            if (formData[field] !== undefined) {
+                const error = validateField(field, formData[field]);
+                if (error) {
+                    newErrors[field] = error;
+                    isValid = false;
+                }
+            }
+        });
+
+        setErrors(newErrors);
+        return isValid;
+    };
+
 
     const handleImageUpload = async (e) => {
         const file = e.target.files[0];
@@ -81,10 +148,6 @@ const UserProfile = () => {
 
         setLoading(true);
         setStatus(null);
-        // Debugging Alert
-        setLoading(true);
-        setStatus(null);
-        // Debugging Alert Removed
 
         try {
             // Strict filepath per security rules: profile_photos/<uid>
@@ -131,6 +194,11 @@ const UserProfile = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+
+        if (!validateForm()) {
+            return;
+        }
+
         setLoading(true);
         setStatus(null);
 
@@ -542,7 +610,6 @@ const UserProfile = () => {
 
                                 <div style={{ padding: '2rem', overflowY: 'auto', flex: 1 }}>
                                     <form id="editForm" onSubmit={handleSubmit} style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-
                                         {activeTab === 'personal' && (
                                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                                 <div style={{ gridColumn: 'span 2', display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem', background: 'rgba(148, 163, 184, 0.1)', borderRadius: '0.75rem', marginBottom: '1rem' }}>
@@ -556,28 +623,32 @@ const UserProfile = () => {
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Date of Birth</label>
-                                                    <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500 outline-none transition-colors" />
+                                                    <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.dateOfBirth ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500 outline-none transition-colors`} />
+                                                    {errors.dateOfBirth && <p className="text-red-500 text-xs mt-1">{errors.dateOfBirth}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Gender</label>
-                                                    <select name="gender" value={formData.gender} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500 outline-none">
+                                                    <select name="gender" value={formData.gender} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.gender ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500 outline-none`}>
                                                         <option value="">Select Gender</option>
                                                         <option value="Male">Male</option>
                                                         <option value="Female">Female</option>
                                                         <option value="Other">Other</option>
                                                     </select>
+                                                    {errors.gender && <p className="text-red-500 text-xs mt-1">{errors.gender}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Marital Status</label>
-                                                    <select name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500 outline-none">
+                                                    <select name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.maritalStatus ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500 outline-none`}>
                                                         <option value="">Select Status</option>
                                                         <option value="Single">Single</option>
                                                         <option value="Married">Married</option>
                                                     </select>
+                                                    {errors.maritalStatus && <p className="text-red-500 text-xs mt-1">{errors.maritalStatus}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Nationality</label>
-                                                    <input type="text" name="nationality" value={formData.nationality} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500 outline-none" />
+                                                    <input type="text" name="nationality" value={formData.nationality} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.nationality ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500 outline-none`} />
+                                                    {errors.nationality && <p className="text-red-500 text-xs mt-1">{errors.nationality}</p>}
                                                 </div>
                                                 <div style={{ gridColumn: 'span 2' }}>
                                                     <label className="block text-sm text-gray-400 mb-1">Professional Bio</label>
@@ -590,23 +661,28 @@ const UserProfile = () => {
                                             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} style={{ gridColumn: 'span 2', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Phone Number</label>
-                                                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500" />
+                                                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.phone ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500`} />
+                                                    {errors.phone && <p className="text-red-500 text-xs mt-1">{errors.phone}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">City</label>
-                                                    <input type="text" name="city" value={formData.city} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500" />
+                                                    <input type="text" name="city" value={formData.city} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.city ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500`} />
+                                                    {errors.city && <p className="text-red-500 text-xs mt-1">{errors.city}</p>}
                                                 </div>
                                                 <div style={{ gridColumn: 'span 2' }}>
                                                     <label className="block text-sm text-gray-400 mb-1">Address</label>
-                                                    <input type="text" name="address" value={formData.address} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500" />
+                                                    <input type="text" name="address" value={formData.address} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.address ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500`} />
+                                                    {errors.address && <p className="text-red-500 text-xs mt-1">{errors.address}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">State</label>
-                                                    <input type="text" name="state" value={formData.state} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500" />
+                                                    <input type="text" name="state" value={formData.state} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.state ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500`} />
+                                                    {errors.state && <p className="text-red-500 text-xs mt-1">{errors.state}</p>}
                                                 </div>
                                                 <div>
                                                     <label className="block text-sm text-gray-400 mb-1">Zip Code</label>
-                                                    <input type="text" name="zipCode" value={formData.zipCode} onChange={handleChange} className="w-full p-3 bg-slate-800 border border-slate-700 rounded-lg text-white focus:border-cyan-500" />
+                                                    <input type="text" name="zipCode" value={formData.zipCode} onChange={handleChange} className={`w-full p-3 bg-slate-800 border ${errors.zipCode ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white focus:border-cyan-500`} />
+                                                    {errors.zipCode && <p className="text-red-500 text-xs mt-1">{errors.zipCode}</p>}
                                                 </div>
 
                                                 {/* Socials */}
@@ -628,9 +704,18 @@ const UserProfile = () => {
                                                 <div style={{ gridColumn: 'span 2', borderTop: '1px solid rgba(255,255,255,0.1)', marginTop: '1rem', paddingTop: '1.5rem' }}>
                                                     <h4 style={{ color: '#f87171', fontSize: '0.9rem', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}><AlertCircle size={16} /> Emergency Contact</h4>
                                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                                                        <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleChange} placeholder="Name" className="p-3 bg-slate-800 border border-slate-700 rounded-lg text-white" />
-                                                        <input type="text" name="emergencyContactRelation" value={formData.emergencyContactRelation} onChange={handleChange} placeholder="Relation" className="p-3 bg-slate-800 border border-slate-700 rounded-lg text-white" />
-                                                        <input type="text" name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleChange} placeholder="Phone" className="p-3 bg-slate-800 border border-slate-700 rounded-lg text-white" />
+                                                        <div>
+                                                            <input type="text" name="emergencyContactName" value={formData.emergencyContactName} onChange={handleChange} placeholder="Name" className={`p-3 bg-slate-800 border ${errors.emergencyContactName ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white w-full`} />
+                                                            {errors.emergencyContactName && <p className="text-red-500 text-xs mt-1">{errors.emergencyContactName}</p>}
+                                                        </div>
+                                                        <div>
+                                                            <input type="text" name="emergencyContactRelation" value={formData.emergencyContactRelation} onChange={handleChange} placeholder="Relation" className={`p-3 bg-slate-800 border ${errors.emergencyContactRelation ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white w-full`} />
+                                                            {errors.emergencyContactRelation && <p className="text-red-500 text-xs mt-1">{errors.emergencyContactRelation}</p>}
+                                                        </div>
+                                                        <div>
+                                                            <input type="text" name="emergencyContactPhone" value={formData.emergencyContactPhone} onChange={handleChange} placeholder="Phone" className={`p-3 bg-slate-800 border ${errors.emergencyContactPhone ? 'border-red-500' : 'border-slate-700'} rounded-lg text-white w-full`} />
+                                                            {errors.emergencyContactPhone && <p className="text-red-500 text-xs mt-1">{errors.emergencyContactPhone}</p>}
+                                                        </div>
                                                     </div>
                                                 </div>
                                             </motion.div>

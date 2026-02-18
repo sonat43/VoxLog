@@ -20,6 +20,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
         // Web
         linkedInProfile: '', googleScholarProfile: ''
     });
+    const [errors, setErrors] = useState({});
     const [loading, setLoading] = useState(false);
 
     useEffect(() => {
@@ -36,7 +37,6 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
         if (editingUser) {
             setFormData({
                 ...editingUser,
-                // Ensure defaults for potentially undefined new fields
                 gender: editingUser.gender || '',
                 dateOfBirth: editingUser.dateOfBirth || '',
                 nationality: editingUser.nationality || '',
@@ -70,23 +70,99 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                 linkedInProfile: '', googleScholarProfile: ''
             });
         }
+        setErrors({});
     }, [editingUser, isOpen]);
 
     if (!isOpen) return null;
 
-    const handleSubmit = async (e) => {
-        e.preventDefault();
-        setLoading(true);
-        onSubmit(formData);
-        setLoading(false);
+    const validateField = (name, value) => {
+        let error = "";
+
+        // Required Fields List
+        const requiredFields = [
+            'displayName', 'email', 'role', 'status',
+            'gender', 'dateOfBirth', 'nationality', 'maritalStatus',
+            'department', 'designation', 'employeeId', 'joiningDate',
+            'specialization', 'qualifications', 'experience',
+            'phone', 'address', 'city', 'state', 'zipCode',
+            'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone'
+        ];
+
+        if (requiredFields.includes(name)) {
+            if (!value || value.toString().trim() === '') {
+                error = "This field is required.";
+            }
+        }
+
+        // Specific Validations
+        if (name === 'phone' || name === 'emergencyContactPhone') {
+            if (value) {
+                if (!/^\d{10}$/.test(value)) {
+                    error = "Must be exactly 10 digits.";
+                } else if (/^(\d)\1{9}$/.test(value)) {
+                    error = "Invalid phone number (repeating digits).";
+                }
+            }
+        }
+
+        if (name === 'email') {
+            if (value && !/\S+@\S+\.\S+/.test(value)) {
+                error = "Invalid email address.";
+            }
+        }
+
+        return error;
+    };
+
+    const validateForm = () => {
+        const newErrors = {};
+        let isValid = true;
+
+        // Validate all keys in formData that are relevant
+        // We can just iterate over our required list + check specifics
+        const allFields = Object.keys(formData);
+
+        allFields.forEach(field => {
+            const error = validateField(field, formData[field]);
+            if (error) {
+                newErrors[field] = error;
+                isValid = false;
+            }
+        });
+
+        setErrors(newErrors);
+        return isValid;
     };
 
     const handleChange = (e) => {
         const { name, value, type, checked } = e.target;
+        const newValue = type === 'checkbox' ? (checked ? 'active' : 'disabled') : value;
+
         setFormData(prev => ({
             ...prev,
-            [name]: type === 'checkbox' ? (checked ? 'active' : 'disabled') : value
+            [name]: newValue
         }));
+
+        // Realtime Validation
+        const error = validateField(name, newValue);
+        setErrors(prev => ({
+            ...prev,
+            [name]: error
+        }));
+    };
+
+    const handleSubmit = async (e) => {
+        e.preventDefault();
+
+        if (!validateForm()) {
+            // Optional: alert or just focus first error
+            // alert("Please fix the errors in the form.");
+            return;
+        }
+
+        setLoading(true);
+        onSubmit(formData);
+        setLoading(false);
     };
 
     const TabButton = ({ id, label, icon: Icon }) => (
@@ -110,12 +186,48 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
         </button>
     );
 
-    const inputStyle = {
-        padding: '0.75rem', borderRadius: '0.5rem', border: '1px solid #4b5563',
+    const inputStyle = (hasError) => ({
+        padding: '0.75rem', borderRadius: '0.5rem',
+        border: hasError ? '1px solid #ef4444' : '1px solid #4b5563',
         background: '#374151', color: 'white', outline: 'none', width: '100%'
-    };
+    });
 
     const labelStyle = { display: 'block', fontSize: '0.85rem', fontWeight: 500, color: '#d1d5db', marginBottom: '0.4rem' };
+    const errorStyle = { color: '#ef4444', fontSize: '0.75rem', marginTop: '0.25rem' };
+
+    // Helper for rendering inputs with error
+    const renderInput = (label, name, type = "text", required = false, disabled = false) => (
+        <div>
+            <label style={labelStyle}>{label} {required && <span style={{ color: '#f87171' }}>*</span>}</label>
+            <input
+                type={type}
+                name={name}
+                value={formData[name]}
+                onChange={handleChange}
+                style={inputStyle(!!errors[name])}
+                disabled={disabled}
+            />
+            {errors[name] && <div style={errorStyle}>{errors[name]}</div>}
+        </div>
+    );
+
+    // Helper for Selects
+    const renderSelect = (label, name, options, required = false) => (
+        <div>
+            <label style={labelStyle}>{label} {required && <span style={{ color: '#f87171' }}>*</span>}</label>
+            <select
+                name={name}
+                value={formData[name]}
+                onChange={handleChange}
+                style={inputStyle(!!errors[name])}
+            >
+                {options.map(opt => (
+                    <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+            </select>
+            {errors[name] && <div style={errorStyle}>{errors[name]}</div>}
+        </div>
+    );
 
     return (
         <div style={{
@@ -156,31 +268,19 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                     {activeTab === 'account' && (
                         <div style={{ display: 'grid', gap: '1.5rem' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div>
-                                    <label style={labelStyle}>Full Name <span style={{ color: '#f87171' }}>*</span></label>
-                                    <input type="text" name="displayName" value={formData.displayName} onChange={handleChange} required style={inputStyle} />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Email <span style={{ color: '#f87171' }}>*</span></label>
-                                    <input type="email" name="email" value={formData.email} onChange={handleChange} required disabled={!!editingUser} style={{ ...inputStyle, cursor: editingUser ? 'not-allowed' : 'text', opacity: editingUser ? 0.7 : 1 }} />
-                                </div>
+                                {renderInput("Full Name", "displayName", "text", true)}
+                                {renderInput("Email", "email", "email", true, !!editingUser)}
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div>
-                                    <label style={labelStyle}>System Role</label>
-                                    <select name="role" value={formData.role} onChange={handleChange} style={inputStyle}>
-                                        <option value="faculty">Faculty</option>
-                                        <option value="admin">Administrator</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Account Status</label>
-                                    <select name="status" value={formData.status} onChange={handleChange} style={inputStyle}>
-                                        <option value="active">Active</option>
-                                        <option value="disabled">Disabled</option>
-                                    </select>
-                                </div>
+                                {renderSelect("System Role", "role", [
+                                    { value: "faculty", label: "Faculty" },
+                                    { value: "admin", label: "Administrator" }
+                                ], true)}
+                                {renderSelect("Account Status", "status", [
+                                    { value: "active", label: "Active" },
+                                    { value: "disabled", label: "Disabled" }
+                                ], true)}
                             </div>
 
                             {!editingUser && (
@@ -195,31 +295,19 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                     {/* IDENTITY TAB */}
                     {activeTab === 'identity' && (
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                            <div>
-                                <label style={labelStyle}>Gender</label>
-                                <select name="gender" value={formData.gender} onChange={handleChange} style={inputStyle}>
-                                    <option value="">Select...</option>
-                                    <option value="Male">Male</option>
-                                    <option value="Female">Female</option>
-                                    <option value="Other">Other</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Date of Birth</label>
-                                <input type="date" name="dateOfBirth" value={formData.dateOfBirth} onChange={handleChange} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Nationality</label>
-                                <input type="text" name="nationality" value={formData.nationality} onChange={handleChange} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Marital Status</label>
-                                <select name="maritalStatus" value={formData.maritalStatus} onChange={handleChange} style={inputStyle}>
-                                    <option value="">Select...</option>
-                                    <option value="Single">Single</option>
-                                    <option value="Married">Married</option>
-                                </select>
-                            </div>
+                            {renderSelect("Gender", "gender", [
+                                { value: "", label: "Select..." },
+                                { value: "Male", label: "Male" },
+                                { value: "Female", label: "Female" },
+                                { value: "Other", label: "Other" }
+                            ])}
+                            {renderInput("Date of Birth", "dateOfBirth", "date")}
+                            {renderInput("Nationality", "nationality")}
+                            {renderSelect("Marital Status", "maritalStatus", [
+                                { value: "", label: "Select..." },
+                                { value: "Single", label: "Single" },
+                                { value: "Married", label: "Married" }
+                            ])}
                         </div>
                     )}
 
@@ -228,30 +316,25 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
                             <div>
                                 <label style={labelStyle}>Department</label>
-                                <select name="department" value={formData.department} onChange={handleChange} style={inputStyle}>
+                                <select
+                                    name="department"
+                                    value={formData.department}
+                                    onChange={handleChange}
+                                    style={inputStyle(!!errors.department)}
+                                >
                                     <option value="">Select...</option>
                                     {departments.map(d => <option key={d.id} value={d.name}>{d.name}</option>)}
                                 </select>
+                                {errors.department && <div style={errorStyle}>{errors.department}</div>}
                             </div>
-                            <div>
-                                <label style={labelStyle}>Designation</label>
-                                <input type="text" name="designation" placeholder="e.g. Assistant Professor" value={formData.designation} onChange={handleChange} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Employee ID</label>
-                                <input type="text" name="employeeId" value={formData.employeeId} onChange={handleChange} style={inputStyle} />
-                            </div>
-                            <div>
-                                <label style={labelStyle}>Joining Date</label>
-                                <input type="date" name="joiningDate" value={formData.joiningDate} onChange={handleChange} style={inputStyle} />
+                            {renderInput("Designation", "designation")}
+                            {renderInput("Employee ID", "employeeId")}
+                            {renderInput("Joining Date", "joiningDate", "date")}
+                            <div style={{ gridColumn: 'span 2' }}>
+                                {renderInput("Specialization", "specialization")}
                             </div>
                             <div style={{ gridColumn: 'span 2' }}>
-                                <label style={labelStyle}>Specialization</label>
-                                <input type="text" name="specialization" value={formData.specialization} onChange={handleChange} style={inputStyle} />
-                            </div>
-                            <div style={{ gridColumn: 'span 2' }}>
-                                <label style={labelStyle}>Qualifications</label>
-                                <input type="text" name="qualifications" value={formData.qualifications} onChange={handleChange} style={inputStyle} />
+                                {renderInput("Qualifications", "qualifications")}
                             </div>
                         </div>
                     )}
@@ -260,36 +343,21 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
                     {activeTab === 'contact' && (
                         <div style={{ display: 'grid', gap: '1.5rem' }}>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div>
-                                    <label style={labelStyle}>Phone Number</label>
-                                    <input type="text" name="phone" value={formData.phone} onChange={handleChange} style={inputStyle} />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>City</label>
-                                    <input type="text" name="city" value={formData.city} onChange={handleChange} style={inputStyle} />
-                                </div>
+                                {renderInput("Phone Number", "phone")}
+                                {renderInput("City", "city")}
                             </div>
-                            <div>
-                                <label style={labelStyle}>Address</label>
-                                <input type="text" name="address" value={formData.address} onChange={handleChange} style={inputStyle} />
-                            </div>
+                            {renderInput("Address", "address")}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
-                                <div>
-                                    <label style={labelStyle}>State</label>
-                                    <input type="text" name="state" value={formData.state} onChange={handleChange} style={inputStyle} />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Zip Code</label>
-                                    <input type="text" name="zipCode" value={formData.zipCode} onChange={handleChange} style={inputStyle} />
-                                </div>
+                                {renderInput("State", "state")}
+                                {renderInput("Zip Code", "zipCode")}
                             </div>
 
                             <div style={{ borderTop: '1px solid rgba(255,255,255,0.1)', paddingTop: '1rem', marginTop: '0.5rem' }}>
                                 <h4 style={{ color: '#f87171', fontSize: '0.9rem', margin: '0 0 1rem 0' }}>Emergency Contact</h4>
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
-                                    <input type="text" name="emergencyContactName" placeholder="Name" value={formData.emergencyContactName} onChange={handleChange} style={inputStyle} />
-                                    <input type="text" name="emergencyContactRelation" placeholder="Relation" value={formData.emergencyContactRelation} onChange={handleChange} style={inputStyle} />
-                                    <input type="text" name="emergencyContactPhone" placeholder="Phone" value={formData.emergencyContactPhone} onChange={handleChange} style={inputStyle} />
+                                    {renderInput("Name", "emergencyContactName")}
+                                    {renderInput("Relation", "emergencyContactRelation")}
+                                    {renderInput("Phone", "emergencyContactPhone")}
                                 </div>
                             </div>
                         </div>

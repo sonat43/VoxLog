@@ -10,8 +10,9 @@ import FacultyCourses from './pages/faculty/FacultyCourses';
 import FacultyReports from './pages/faculty/Reports';
 import AcademicProgress from './pages/faculty/AcademicProgress';
 import Gradebook from './pages/faculty/Gradebook';
-import ResourceCenter from './pages/faculty/ResourceCenter';
 import MyClass from './pages/faculty/MyClass';
+import History from './pages/faculty/History';
+import FacultyTimetables from './pages/faculty/FacultyTimetables';
 
 import './App.css';
 
@@ -30,7 +31,13 @@ import Seeder from './pages/admin/academic/Seeder';
 import Students from './pages/admin/academic/Students';
 import Timetable from './pages/admin/academic/Timetable';
 import AttendanceRecords from './pages/admin/academic/AttendanceRecords';
+
 import ManualAttendance from './pages/admin/academic/ManualAttendance';
+import LeaveApproval from './pages/admin/LeaveApproval';
+import MasterAttendanceCalendar from './pages/admin/MasterAttendanceCalendar';
+import LeaveManagement from './pages/faculty/LeaveManagement';
+import SubstitutionPage from './pages/faculty/SubstitutionPage';
+
 
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole }) => {
@@ -80,6 +87,12 @@ function App() {
             <Route path="academic-timetable" element={<Timetable />} />
             <Route path="attendance-records" element={<AttendanceRecords />} />
             <Route path="manual-attendance" element={<ManualAttendance />} />
+
+            {/* New Workflows */}
+            <Route path="leaves" element={<LeaveApproval />} />
+            <Route path="substitutions" element={<SubstitutionPage />} />
+            <Route path="master-calendar" element={<MasterAttendanceCalendar />} />
+
             <Route path="settings" element={<SettingsConfig />} />
             <Route path="seed" element={<Seeder />} />
             <Route path="*" element={<div style={{ padding: '2rem', color: 'white' }}>Page Under Construction</div>} />
@@ -95,8 +108,10 @@ function App() {
             <Route path="courses" element={<FacultyCourses />} />
             <Route path="my-class" element={<MyClass />} />
             <Route path="academic-progress" element={<AcademicProgress />} />
-            <Route path="gradebook" element={<Gradebook />} />
-            <Route path="resources" element={<ResourceCenter />} />
+            <Route path="history" element={<History />} />
+            <Route path="leave-management" element={<LeaveManagement />} />
+            <Route path="substitutions" element={<SubstitutionPage />} />
+            <Route path="timetables" element={<FacultyTimetables />} />
 
             <Route path="profile" element={<UserProfile />} />
           </Route>

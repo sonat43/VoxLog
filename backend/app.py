@@ -49,6 +49,18 @@ def process_rollcall():
     audio_file = request.files['audio']
     audio_bytes = audio_file.read()
     
+    # Get valid_rolls from form data (sent as JSON string or comma-separated)
+    import json
+    valid_rolls = None
+    if 'valid_rolls' in request.form:
+        try:
+            valid_rolls = json.loads(request.form['valid_rolls'])
+            # Ensure all are strings
+            valid_rolls = [str(r) for r in valid_rolls]
+        except:
+            # Fallback to comma separated
+            valid_rolls = [r.strip() for r in request.form['valid_rolls'].split(',') if r.strip()]
+    
     # Save Audio Locally
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     filename = f"rollcall_{timestamp}.wav"
@@ -57,7 +69,7 @@ def process_rollcall():
         f.write(audio_bytes)
         
     text = stt_proc.process_audio(audio_bytes)
-    roll_numbers = stt_proc.extract_roll_numbers(text)
+    roll_numbers = stt_proc.extract_roll_numbers(text, valid_rolls=valid_rolls)
     
     print(f"[SUCCESS] Processed Roll Call. Text: '{text}', Found: {roll_numbers}")
     

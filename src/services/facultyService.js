@@ -409,9 +409,12 @@ export const getHeadcount = async (imageBlob) => {
     }
 };
 
-export const processRollCall = async (audioBlob) => {
+export const processRollCall = async (audioBlob, validRolls = null) => {
     const formData = new FormData();
     formData.append('audio', audioBlob, 'recording.wav');
+    if (validRolls) {
+        formData.append('valid_rolls', JSON.stringify(validRolls));
+    }
 
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for audio processing

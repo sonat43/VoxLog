@@ -33,6 +33,8 @@ const SmartAttendance = ({ course, onClose }) => {
     const [attendanceMap, setAttendanceMap] = useState({}); // studentId -> status
     const [mismatchPrompt, setMismatchPrompt] = useState(false);
     const [cameraReady, setCameraReady] = useState(false);
+    const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
+    const [processingMessage, setProcessingMessage] = useState("");
 
     useEffect(() => {
         fetchStudents();
@@ -43,14 +45,39 @@ const SmartAttendance = ({ course, onClose }) => {
     const fetchStudents = async () => {
         try {
             const data = await getStudentsBySemester(course.semesterId);
-            setStudents(data);
+
+            // Sort Students Alphabetically by name (displayName)
+            // Note: Use a case-insensitive localeCompare for best results
+            const sortedData = [...data].sort((a, b) =>
+                (a.name || a.displayName || "").toLowerCase().localeCompare((b.name || b.displayName || "").toLowerCase())
+            );
+
+            // Assign Sequential Virtual Roll Numbers (1 to N)
+            const enrichedData = sortedData.map((s, index) => ({
+                ...s,
+                virtualRollNo: String(index + 1)
+            }));
+
+            console.log("[DEBUG] Students with Sequential Roll Numbers:");
+            console.table(enrichedData.map(s => ({
+                Roll: s.virtualRollNo,
+                Name: s.name,
+                Reg: s.regNo
+            })).slice(0, 10));
+
+            setStudents(enrichedData);
+
             // Default everyone to absent initially
             const initialMap = {};
-            data.forEach(s => initialMap[s.id] = 'Absent');
+            enrichedData.forEach(s => initialMap[s.id] = 'Absent');
             setAttendanceMap(initialMap);
         } catch (err) {
             console.error("Error fetching students", err);
         }
+    };
+
+    const isInsecureOrigin = () => {
+        return window.location.protocol !== 'https:' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1';
     };
 
     const startCamera = async () => {
@@ -147,11 +174,11 @@ const SmartAttendance = ({ course, onClose }) => {
             // Initialize Web Speech API
             const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
             let recognition = null;
-            if (SpeechRecognition) {
+            if (SpeechRecognition && !isInsecureOrigin()) { // Only try if not insecure origin
                 recognition = new SpeechRecognition();
                 recognition.continuous = true;
                 recognition.interimResults = true;
-                recognition.lang = 'en-US';
+                recognition.lang = 'en-IN'; // Better support for Indian accent
 
                 recognition.onstart = () => {
                     console.log("[DEBUG] Recognition started");
@@ -199,9 +226,13 @@ const SmartAttendance = ({ course, onClose }) => {
                 recognition.start();
                 recognitionRef.current = recognition;
             } else {
-                console.warn("[DEBUG] Web Speech API not supported in this browser.");
+                console.warn("[DEBUG] Web Speech API not supported or insecure origin detected.");
                 setRecognitionStatus("error");
-                setError("Voice recognize is not supported in this browser. Please use Chrome or Edge.");
+                if (isInsecureOrigin()) {
+                    setError("Browser voice recognition is disabled on insecure origins (non-HTTPS, non-localhost). Falling back to server-side processing.");
+                } else {
+                    setError("Voice recognition is not supported in this browser. Please use Chrome or Edge.");
+                }
             }
 
             recorder.ondataavailable = (e) => chunks.push(e.data);
@@ -210,7 +241,11 @@ const SmartAttendance = ({ course, onClose }) => {
                 const blob = new Blob(chunks, { type: mimeType });
                 console.log(`[DEBUG] Audio captured: ${mimeType}, size: ${blob.size} bytes`);
 
-                if (recognition && recognitionStatus !== 'network-error' && transcriptRef.current.trim()) {
+                // Create URL for preview
+                const url = URL.createObjectURL(blob);
+                setRecordedAudioUrl(url);
+
+                if (recognition && recognitionStatus !== 'network-error' && transcriptRef.current.trim() && !isInsecureOrigin()) {
                     setRecognitionStatus("processing");
                     recognition.onend = null; // Prevent restart
                     recognition.stop();
@@ -220,8 +255,9 @@ const SmartAttendance = ({ course, onClose }) => {
                     // Fallback to backend STT if browser API failed, resulted in error, or provided no text
                     console.log("[DEBUG] Falling back to backend STT. Reason:",
                         !recognition ? "No API support" :
-                            recognitionStatus === 'network-error' ? "Network Error" :
-                                "No transcript captured");
+                            isInsecureOrigin() ? "Insecure Origin" :
+                                recognitionStatus === 'network-error' ? "Network Error" :
+                                    "No transcript captured");
 
                     if (recognition) {
                         recognition.onend = null;
@@ -248,30 +284,73 @@ const SmartAttendance = ({ course, onClose }) => {
         }
     };
 
+    const isRollNumberMatch = (student, roll) => {
+        if (!student || !roll) return false;
+
+        // Sanitize both inputs
+        const sRoll = String(student.virtualRollNo || "").trim();
+        const hRoll = String(roll).trim();
+
+        // 1. Direct Sequential Match (e.g., "1" matches "1")
+        if (sRoll && sRoll === hRoll) {
+            console.log(`[DEBUG] Virtual Roll Match: ${student.name} matches roll ${hRoll}`);
+            return true;
+        }
+
+        // 2. Numeric Equality Match (handles "01" vs "1")
+        if (sRoll && !isNaN(sRoll) && !isNaN(hRoll)) {
+            if (parseInt(sRoll) === parseInt(hRoll)) {
+                return true;
+            }
+        }
+
+        // 3. Fallback: Match against numeric part of RegNo
+        const sReg = String(student.regNo || "").toLowerCase().trim();
+        const sRegNum = sReg.match(/\d+$/);
+        if (sRegNum && !isNaN(hRoll)) {
+            if (parseInt(sRegNum[0]) === parseInt(hRoll)) {
+                return true;
+            }
+        }
+
+        return false;
+    };
+
     const processTranscript = async (text, audioBlob) => {
+        console.log("[DEBUG] Processing Transcript:", text);
         setLoading(true);
         try {
-            // Send audio to backend anyway for storage
-            const formData = new FormData();
-            formData.append('audio', audioBlob, 'rollcall.wav');
+            // Get valid roll numbers for the backend
+            const validRolls = students.map(s => s.virtualRollNo);
 
             // Extract numbers from text
             const rollNumbers = extractNumbersFromText(text);
+            console.log("[DEBUG] Extracted Numbers:", rollNumbers);
             setRecognizedRollNumbers(rollNumbers);
 
             // Match students
+            if (students.length === 0) {
+                console.warn("[DEBUG] No students loaded for matching!");
+            }
+
             const newMap = { ...attendanceMap };
+            let matchedCount = 0;
+
             students.forEach(s => {
-                if (rollNumbers.includes(String(s.regNo))) {
+                const isPresent = rollNumbers.some(roll => isRollNumberMatch(s, roll));
+                if (isPresent) {
+                    console.log(`[DEBUG] Matched Student: ${s.name} (Virtual Roll: ${s.virtualRollNo})`);
                     newMap[s.id] = 'Present';
+                    matchedCount++;
                 }
             });
 
+            console.log(`[DEBUG] Total Matched: ${matchedCount}`);
             setAttendanceMap(newMap);
             setStep('preview');
 
-            // Send to backend for logging and verification
-            await processRollCall(audioBlob);
+            // Send to backend for logging and verification (with valid rolls for smart splitting if needed)
+            await processRollCall(audioBlob, validRolls);
 
             // Check for mismatch
             const presentCount = Object.values(newMap).filter(v => v === 'Present').length;
@@ -295,7 +374,8 @@ const SmartAttendance = ({ course, onClose }) => {
         setRecognizedRollNumbers(numbers);
         const newMap = { ...attendanceMap };
         students.forEach(s => {
-            if (numbers.includes(String(s.regNo))) {
+            const isPresent = numbers.some(roll => isRollNumberMatch(s, roll));
+            if (isPresent) {
                 newMap[s.id] = 'Present';
             }
         });
@@ -310,28 +390,45 @@ const SmartAttendance = ({ course, onClose }) => {
     const extractNumbersFromText = (text) => {
         if (!text) return [];
         const wordToNum = {
-            'zero': '0', 'one': '1', 'two': '2', 'three': '3', 'four': '4',
-            'five': '5', 'six': '6', 'seven': '7', 'eight': '8', 'nine': '9',
-            'ten': '10', 'eleven': '11', 'twelve': '12', 'thirteen': '13',
-            'fourteen': '14', 'fifteen': '15', 'sixteen': '16', 'seventeen': '17',
-            'eighteen': '18', 'nineteen': '19', 'twenty': '20'
+            'zero': '0', 'one': '1', 'won': '1', 'on': '1', 'o': '1', 'two': '2', 'to': '2', 'too': '2', 'do': '2',
+            'three': '3', 'tree': '3', 'the': '3', 'four': '4', 'for': '4', 'fore': '4', 'five': '5', 'fine': '5',
+            'fire': '5', 'six': '6', 'sex': '6', 'sick': '6', 'seven': '7', 'heaven': '7', 'eight': '8', 'ate': '8',
+            'h': '8', 'nine': '9', 'night': '9', 'line': '9', 'ten': '10', 'then': '10', 'pen': '10',
+            'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14',
+            'fifteen': '15', 'sixteen': '16', 'seventeen': '17', 'eighteen': '18',
+            'nineteen': '19', 'twenty': '20'
         };
 
-        const cleanText = text.toLowerCase().replace(/[,.]/g, ' ');
-        const words = cleanText.split(/\s+/);
+        const validRolls = students.map(s => s.virtualRollNo);
+
+        const cleanText = text.toLowerCase().replace(/[,.]/g, ' ').replace(/\s+next\s+/g, ' ');
         const extracted = new Set();
 
-        words.forEach(word => {
-            if (/^\d+$/.test(word)) {
-                extracted.add(word);
-            } else if (wordToNum[word]) {
-                extracted.add(wordToNum[word]);
+        // 1. Process words/tokens
+        const rawWords = cleanText.split(/\s+/);
+        rawWords.forEach(word => {
+            const alphaOnly = word.replace(/[^a-z]/g, '');
+            const digitsOnly = word.replace(/[^0-9]/g, '');
+
+            if (wordToNum[alphaOnly]) {
+                extracted.add(wordToNum[alphaOnly]);
+            } else if (digitsOnly.length > 0) {
+                // Smart splitting logic: if "12" is valid, keep it. Else split to ["1", "2"]
+                const val = String(parseInt(digitsOnly));
+                if (validRolls.length > 0 && !validRolls.includes(val) && digitsOnly.length > 1) {
+                    for (let char of digitsOnly) {
+                        extracted.add(char);
+                    }
+                } else {
+                    extracted.add(val);
+                }
             }
         });
 
-        // Also catch digits embedded in text
-        const digits = cleanText.match(/\d+/g);
-        if (digits) digits.forEach(d => extracted.add(d));
+        // 2. Global cleanup: Ensure everything in the set is an actual valid roll if any are loaded
+        if (validRolls.length > 0) {
+            return Array.from(extracted).filter(r => validRolls.includes(r));
+        }
 
         return Array.from(extracted);
     };
@@ -339,27 +436,42 @@ const SmartAttendance = ({ course, onClose }) => {
     const processAudio = async (blob) => {
         setLoading(true);
         try {
-            const result = await processRollCall(blob);
-            setRecognizedRollNumbers(result.roll_numbers);
+            // Get numeric roll numbers from our loaded students for smart splitting in backend
+            const validRolls = students.map(s => s.virtualRollNo);
 
-            // Map recognized roll numbers to student list
+            const result = await processRollCall(blob, validRolls);
+
+            if (result.text === "ERROR: FFMPEG_MISSING") {
+                setError("Backend Error: FFMPEG is not installed on the server. Please tell the administrator to install FFMPEG to allow voice processing.");
+                return;
+            }
+
+            setTranscribedText(result.text);
+            setRecognizedRollNumbers(result.roll_numbers);
+            console.log("[DEBUG] Backend Roll Numbers:", result.roll_numbers);
+
+            if (students.length === 0) {
+                console.warn("[DEBUG] No students loaded for matching!");
+            }
+
             const newMap = { ...attendanceMap };
-            const presentRolls = result.roll_numbers.map(n => String(n));
+            let matchedCount = 0;
 
             students.forEach(s => {
-                if (presentRolls.includes(String(s.regNo))) {
+                const isPresent = result.roll_numbers.some(roll => isRollNumberMatch(s, roll));
+                if (isPresent) {
+                    console.log(`[DEBUG] Matched Student: ${s.name} (Virtual Roll: ${s.virtualRollNo})`);
                     newMap[s.id] = 'Present';
+                    matchedCount++;
                 }
             });
 
+            console.log(`[DEBUG] Total Matched: ${matchedCount}`);
             setAttendanceMap(newMap);
             setStep('preview');
 
-            // Check for mismatch
             const presentCount = Object.values(newMap).filter(v => v === 'Present').length;
-            if (presentCount !== headcount) {
-                setMismatchPrompt(true);
-            }
+            if (presentCount !== headcount) setMismatchPrompt(true);
         } catch (err) {
             setError("Speech recognition failed: " + err.message);
         } finally {
@@ -415,6 +527,10 @@ const SmartAttendance = ({ course, onClose }) => {
         setRecognizedRollNumbers([]);
         setCapturedImage(null);
         setMismatchPrompt(false);
+        if (recordedAudioUrl) {
+            URL.revokeObjectURL(recordedAudioUrl);
+            setRecordedAudioUrl(null);
+        }
         const initialMap = {};
         students.forEach(s => initialMap[s.id] = 'Absent');
         setAttendanceMap(initialMap);
@@ -496,7 +612,29 @@ const SmartAttendance = ({ course, onClose }) => {
                 )}
 
                 {step === 'voice' && (
-                    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center', padding: '2rem 0' }}>
+                    <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.95 }} style={{ textAlign: 'center' }}>
+                        {isInsecureOrigin() && (
+                            <div style={{
+                                marginBottom: '1.5rem',
+                                padding: '1rem',
+                                background: 'rgba(239, 68, 68, 0.1)',
+                                border: '1px solid rgba(239, 68, 68, 0.2)',
+                                borderRadius: '0.75rem',
+                                color: '#f87171',
+                                fontSize: '0.875rem',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '0.75rem',
+                                textAlign: 'left'
+                            }}>
+                                <AlertTriangle size={24} style={{ flexShrink: 0 }} />
+                                <div>
+                                    <strong>Insecure Origin Detected:</strong> Browser Voice Recognition only works on <code>localhost</code> or <code>HTTPS</code>.
+                                    Since you are using an IP address, the browser has disabled the microphone's speech API.
+                                </div>
+                            </div>
+                        )}
+
                         <div style={{ marginBottom: '2.5rem', position: 'relative' }}>
                             <div className={`pulse-ring ${recording ? 'active' : ''}`} style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <Mic size={48} color={recording ? '#3b82f6' : '#94a3b8'} />
@@ -617,6 +755,61 @@ const SmartAttendance = ({ course, onClose }) => {
                             </div>
                         </div>
 
+                        {/* Debug Info for User */}
+                        <div style={{
+                            marginBottom: '1rem',
+                            padding: '0.75rem',
+                            background: 'rgba(255,255,255,0.03)',
+                            borderRadius: '0.5rem',
+                            border: '1px dashed rgba(255,255,255,0.1)'
+                        }}>
+                            <div style={{ marginBottom: '0.5rem' }}>
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Full Transcript:</div>
+                                <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontStyle: 'italic', lineHeight: '1.4' }}>
+                                    "{transcribedText || 'No clear speech detected'}"
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Detected Roll Numbers:</div>
+                                <div style={{ fontSize: '1rem', color: '#60a5fa', fontWeight: 700 }}>
+                                    {recognizedRollNumbers.length > 0 ? recognizedRollNumbers.join(', ') : 'NoneFound'}
+                                </div>
+                            </div>
+
+                            {students.length === 0 ? (
+                                <div style={{ marginTop: '0.5rem', color: '#ef4444', fontSize: '0.75rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                    <AlertTriangle size={12} /> 0 students loaded for this class.
+                                </div>
+                            ) : (
+                                <div style={{ marginTop: '0.5rem', color: '#94a3b8', fontSize: '0.65rem' }}>
+                                    Matching against: {students.slice(0, 5).map(s => `${s.name} (${s.virtualRollNo})`).join(', ')} {students.length > 5 ? '...' : ''}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Audio Preview Section */}
+                        {recordedAudioUrl && (
+                            <div style={{
+                                marginBottom: '1.5rem',
+                                padding: '1rem',
+                                background: 'rgba(59, 130, 246, 0.1)',
+                                borderRadius: '0.75rem',
+                                border: '1px solid rgba(59, 130, 246, 0.2)',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                gap: '0.5rem'
+                            }}>
+                                <div style={{ fontSize: '0.8rem', color: '#60a5fa', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <Mic size={14} /> Recorded Voice Clip
+                                </div>
+                                <audio src={recordedAudioUrl} controls style={{ width: '100%', height: '32px' }} />
+                                <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                                    Listen to verify if your voice was recorded clearly.
+                                </div>
+                            </div>
+                        )}
+
                         {mismatchPrompt && (
                             <div style={{ marginBottom: '1.5rem', padding: '1.25rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', borderRadius: '1rem', display: 'flex', alignItems: 'flex-start', gap: '1rem' }}>
                                 <AlertTriangle color="#ef4444" style={{ marginTop: '0.2rem', flexShrink: 0 }} />
@@ -659,7 +852,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                         </div>
                                         <div>
                                             <div style={{ fontSize: '0.9rem', fontWeight: 500 }}>{student.name}</div>
-                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Roll: {student.regNo}</div>
+                                            <div style={{ fontSize: '0.7rem', color: '#94a3b8' }}>Roll No: {student.virtualRollNo} <span style={{ opacity: 0.5 }}>({student.regNo})</span></div>
                                         </div>
                                     </div>
                                     <button
@@ -726,7 +919,7 @@ const SmartAttendance = ({ course, onClose }) => {
                     50% { opacity: 0.5; }
                 }
             `}} />
-        </div>
+        </div >
     );
 };
 

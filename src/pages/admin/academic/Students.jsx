@@ -27,7 +27,7 @@ const Students = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [toast, setToast] = useState(null);
-    const [formData, setFormData] = useState({ name: '', regNo: '', email: '' });
+    const [formData, setFormData] = useState({ name: '', regNo: '', email: '', parentEmail: '' });
     const [errors, setErrors] = useState({});
     const [bulkData, setBulkData] = useState('');
     const [bulkLogs, setBulkLogs] = useState([]);
@@ -41,6 +41,11 @@ const Students = () => {
         if (name === 'email' && value) {
             if (!/\S+@\S+\.\S+/.test(value)) {
                 error = "Invalid email format";
+            }
+        }
+        if (name === 'parentEmail' && value) {
+            if (!/\S+@\S+\.\S+/.test(value)) {
+                error = "Invalid parent email format";
             }
         }
         return error;
@@ -57,7 +62,7 @@ const Students = () => {
     const validateForm = () => {
         const newErrors = {};
         let isValid = true;
-        const fields = ['name', 'regNo', 'email'];
+        const fields = ['name', 'regNo', 'email', 'parentEmail'];
 
         fields.forEach(field => {
             const error = validateField(field, formData[field]);
@@ -196,7 +201,7 @@ const Students = () => {
 
             setIsModalOpen(false);
             setEditingId(null);
-            setFormData({ name: '', regNo: '', email: '' });
+            setFormData({ name: '', regNo: '', email: '', parentEmail: '' });
             // Refresh with current view logic
             fetchStudents(selectedSemester);
         } catch (error) {
@@ -205,7 +210,7 @@ const Students = () => {
     };
 
     const startEdit = (student) => {
-        setFormData({ name: student.name, regNo: student.regNo, email: student.email });
+        setFormData({ name: student.name, regNo: student.regNo, email: student.email, parentEmail: student.parentEmail || '' });
         setEditingId(student.id);
         setIsModalOpen(true);
     };
@@ -238,19 +243,19 @@ const Students = () => {
             // Handle both comma and tab for Excel copy-paste
             const parts = line.split(/[,\t]+/).map(p => p.trim());
 
-            if (parts.length < 3) {
-                logs.push({ status: 'error', msg: `Invalid Format: ${line} (Need Name, RegNo, Email)` });
+            if (parts.length < 4) {
+                logs.push({ status: 'error', msg: `Invalid Format: ${line} (Need Name, RegNo, Email, ParentEmail)` });
                 continue;
             }
 
-            const [name, regNo, email] = parts;
+            const [name, regNo, email, parentEmail] = parts;
             try {
                 // Check local capacity first to fail fast? 
                 // Service checks capacity properly but we are in a loop.
                 // We'll let service handle individual errors.
 
                 await addStudent({
-                    name, regNo, email,
+                    name, regNo, email, parentEmail,
                     semesterId: selectedSemester,
                     courseId: selectedCourse,
                     departmentId: selectedDept
@@ -292,7 +297,7 @@ const Students = () => {
     const columns = [
         { key: 'regNo', label: 'Register No', render: (val) => <span style={{ fontFamily: 'monospace', color: '#e2e8f0' }}>{val}</span> },
         { key: 'name', label: 'Student Name', render: (val) => <span style={{ fontWeight: 600, color: 'white' }}>{val}</span> },
-        { key: 'email', label: 'Email', render: (val) => <span style={{ color: '#94a3b8' }}>{val}</span> },
+        { key: 'parentEmail', label: 'Parent Email', render: (val) => <span style={{ color: '#94a3b8' }}>{val || '-'}</span> },
         { key: 'createdAt', label: 'Joined', render: (val) => <span style={{ fontSize: '0.8rem', color: '#64748b' }}>{val?.toDate ? new Date(val.toDate()).toLocaleDateString() : 'Just now'}</span> },
     ];
 
@@ -390,7 +395,7 @@ const Students = () => {
                             setToast({ message: "Class is full! Increase limit in Semester settings if needed.", type: "error" });
                         } else {
                             setEditingId(null);
-                            setFormData({ name: '', regNo: '', email: '' });
+                            setFormData({ name: '', regNo: '', email: '', parentEmail: '' });
                             setIsModalOpen(true);
                         }
                     } else {
@@ -469,6 +474,15 @@ const Students = () => {
                         />
                         {errors.email && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.email}</p>}
                     </div>
+                    <div>
+                        <label style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '6px', display: 'block' }}>Parent Email Address</label>
+                        <input
+                            name="parentEmail"
+                            required type="email" value={formData.parentEmail} onChange={handleInputChange}
+                            style={{ ...inputStyle, border: errors.parentEmail ? '1px solid #ef4444' : inputStyle.border }}
+                        />
+                        {errors.parentEmail && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.parentEmail}</p>}
+                    </div>
 
                     <button type="submit" style={{ marginTop: '10px', padding: '12px', borderRadius: '8px', background: '#14b8a6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
                         {editingId ? "Update Student" : "Enroll Student"}
@@ -482,14 +496,14 @@ const Students = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
                         <p style={{ margin: '0 0 8px 0' }}>Paste student details below. One student per line.</p>
-                        <code style={{ background: '#0f172a', padding: '4px 8px', borderRadius: '4px', display: 'block', marginBottom: '8px' }}>Name, RegisterNo, Email</code>
+                        <code style={{ background: '#0f172a', padding: '4px 8px', borderRadius: '4px', display: 'block', marginBottom: '8px' }}>Name, RegisterNo, Email, ParentEmail</code>
                         <p style={{ margin: 0, fontSize: '0.8rem' }}>Works with Excel/Sheets copy-paste.</p>
                     </div>
 
                     <textarea
                         value={bulkData}
                         onChange={(e) => setBulkData(e.target.value)}
-                        placeholder={`John Doe, REG001, john@test.com\nJane Smith, REG002, jane@test.com`}
+                        placeholder={`John Doe, REG001, john@test.com, parent1@test.com\nJane Smith, REG002, jane@test.com, parent2@test.com`}
                         rows={10}
                         style={{
                             width: '100%', padding: '12px', borderRadius: '8px',

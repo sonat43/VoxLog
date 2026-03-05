@@ -184,14 +184,14 @@ const FacultyDashboard = () => {
     }, [subjects, timetables, user, showAttendanceModal]);
 
     const stats = [
-        { title: 'My Courses', value: (subjects?.length || 0).toString(), icon: Book, color: '#14b8a6', bg: 'rgba(20, 184, 166, 0.1)' },
-        { title: 'Syllabus', value: `${dashboardStats?.syllabusProgress || 0}%`, icon: BookOpen, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.1)', trend: 'Completed' },
-        { title: 'At-Risk', value: (dashboardStats?.atRiskCount || 0).toString(), icon: AlertTriangle, color: '#ef4444', bg: 'rgba(239, 68, 68, 0.1)', subtitle: 'Students' },
+        { title: 'My Courses', value: (subjects?.length || 0).toString(), icon: Book, color: 'var(--color-primary)', bg: 'rgba(59, 130, 246, 0.1)' },
+        { title: 'Syllabus', value: `${dashboardStats?.syllabusProgress || 0}%`, icon: BookOpen, color: 'var(--color-success)', bg: 'rgba(34, 197, 94, 0.1)', trend: 'Completed' },
+        { title: 'At-Risk', value: (dashboardStats?.atRiskCount || 0).toString(), icon: AlertTriangle, color: 'var(--color-error)', bg: 'rgba(239, 68, 68, 0.1)', subtitle: 'Students' },
     ];
 
     const quickActions = [
-        { title: 'Course Tracker', desc: 'Update syllabus & topics', icon: BookOpen, path: '/faculty/academic-progress', color: '#14b8a6' },
-        { title: 'Class Timetables', desc: 'View schedules & subs', icon: Calendar, path: '/faculty/timetables', color: '#3b82f6' },
+        { title: 'Course Tracker', desc: 'Update syllabus & topics', icon: BookOpen, path: '/faculty/academic-progress', color: 'var(--color-primary)' },
+        { title: 'Class Timetables', desc: 'View schedules & subs', icon: Calendar, path: '/faculty/timetables', color: 'var(--color-accent)' },
     ];
 
     const containerVariants = {
@@ -240,36 +240,27 @@ const FacultyDashboard = () => {
                 <motion.div
                     variants={itemVariants}
                     style={{
-                        background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1))',
-                        borderRadius: '1.5rem',
-                        padding: '3rem',
-                        border: '1px solid rgba(255, 255, 255, 0.05)',
+                        background: 'linear-gradient(to right, var(--color-surface), var(--color-bg))',
+                        borderRadius: '1rem',
+                        padding: '2.5rem',
+                        border: '1px solid var(--color-border)',
                         position: 'relative',
                         overflow: 'hidden',
-                        backdropFilter: 'blur(10px)'
+                        boxShadow: 'var(--shadow-md)'
                     }}
                 >
                     <div style={{ position: 'relative', zIndex: 1 }}>
                         <h1 style={{
-                            margin: '0 0 1rem 0', fontSize: '2.5rem', fontWeight: 800,
-                            background: 'linear-gradient(to right, #fff, #94a3b8)',
-                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+                            margin: '0 0 0.5rem 0', fontSize: '2rem', fontWeight: 700,
+                            color: 'var(--color-text-main)',
+                            fontFamily: 'serif'
                         }}>
                             Welcome, {user?.displayName || user?.email?.split('@')[0]}
                         </h1>
-                        <p style={{ margin: 0, color: '#9ca3af', maxWidth: '600px', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                            Manage your academic responsibilities from your centralized command center.
+                        <p style={{ margin: 0, color: 'var(--color-text-muted)', maxWidth: '600px', fontSize: '1rem', lineHeight: '1.6' }}>
+                            Academic Dashboard & Control Center
                         </p>
                     </div>
-                    {/* Decorative Pattern */}
-                    <div style={{
-                        position: 'absolute', right: '-10%', top: '-50%',
-                        width: '600px', height: '600px',
-                        background: 'radial-gradient(circle, rgba(139, 92, 246, 0.15) 0%, transparent 70%)',
-                        borderRadius: '50%',
-                        filter: 'blur(60px)',
-                        pointerEvents: 'none'
-                    }} />
                 </motion.div>
 
                 {/* Today's Classes - Action Center */}
@@ -282,7 +273,7 @@ const FacultyDashboard = () => {
                             display: 'flex', flexDirection: 'column', gap: '1rem'
                         }}
                     >
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, margin: 0, color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <Calendar size={24} className="text-gray-400" /> Today's Schedule
                         </h2>
 
@@ -321,7 +312,7 @@ const FacultyDashboard = () => {
                                                 <span>•</span>
                                                 <span>{formatTimeRange(session.timeRange)}</span>
                                             </div>
-                                            <h2 style={{ color: 'white', fontSize: '1.25rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            <h2 style={{ color: 'var(--color-text-main)', fontSize: '1.25rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {session.name}
                                                 {session.isSubstitution && (
                                                     <span style={{
@@ -338,7 +329,7 @@ const FacultyDashboard = () => {
                                                 )}
                                             </h2>
                                             <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.25rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{session.code}</span> •
+                                                <span style={{ color: 'var(--color-text-muted)', fontWeight: 500 }}>{session.code}</span> •
                                                 <span>Sem {session.semesterNo || 'N/A'}</span>
                                                 {session.isSubstitution && (
                                                     <span style={{ color: '#f59e0b', fontSize: '0.8rem' }}>
@@ -400,7 +391,7 @@ const FacultyDashboard = () => {
                             border: '1px solid rgba(255,255,255,0.05)'
                         }}
                     >
-                        <h2 style={{ fontSize: '1.5rem', margin: '0 0 0.5rem 0', color: '#f1f5f9' }}>Relax, No Classes Today!</h2>
+                        <h2 style={{ fontSize: '1.5rem', margin: '0 0 0.5rem 0', color: 'var(--color-text-main)' }}>Relax, No Classes Today!</h2>
                         <p style={{ margin: 0 }}>You don't have any periods scheduled for today.</p>
                     </motion.div>
                 )}
@@ -412,13 +403,12 @@ const FacultyDashboard = () => {
                             key={idx}
                             whileHover={{ y: -5 }}
                             style={{
-                                background: 'linear-gradient(145deg, rgba(30, 41, 59, 0.6), rgba(15, 23, 42, 0.8))',
-                                backdropFilter: 'blur(12px)',
-                                border: '1px solid rgba(255, 255, 255, 0.05)',
-                                borderRadius: '1.25rem',
+                                background: 'var(--color-surface)',
+                                border: '1px solid var(--color-border)',
+                                borderRadius: '0.75rem',
                                 padding: '1.5rem',
                                 display: 'flex', flexDirection: 'column', gap: '1rem',
-                                boxShadow: '0 8px 32px rgba(0,0,0,0.1)'
+                                boxShadow: 'var(--shadow-sm)'
                             }}
                         >
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start' }}>
@@ -426,13 +416,13 @@ const FacultyDashboard = () => {
                                     <stat.icon size={24} />
                                 </div>
                                 {stat.trend && (
-                                    <span style={{ fontSize: '0.75rem', color: '#94a3b8', background: 'rgba(255,255,255,0.05)', padding: '0.25rem 0.75rem', borderRadius: '999px' }}>
+                                    <span style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '0.25rem 0.75rem', borderRadius: '4px' }}>
                                         {stat.trend}
                                     </span>
                                 )}
                             </div>
                             <div>
-                                <div style={{ fontSize: '2.5rem', fontWeight: 800, color: '#f8fafc', letterSpacing: '-0.02em', lineHeight: 1 }}>
+                                <div style={{ fontSize: '2.5rem', fontWeight: 800, color: 'var(--color-text-main)', letterSpacing: '-0.02em', lineHeight: 1 }}>
                                     {stat.value}
                                 </div>
                                 <div style={{ fontSize: '0.9rem', color: '#94a3b8', fontWeight: 500, marginTop: '0.5rem' }}>
@@ -448,7 +438,7 @@ const FacultyDashboard = () => {
 
                     {/* Weekly Schedule Section */}
                     <section>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <Calendar size={24} className="text-gray-400" /> My Weekly Schedule
                         </h2>
 
@@ -459,11 +449,11 @@ const FacultyDashboard = () => {
                                     key={day}
                                     onClick={() => setSelectedDay(day)}
                                     style={{
-                                        background: selectedDay === day ? '#3b82f6' : 'rgba(30, 41, 59, 0.4)',
-                                        color: selectedDay === day ? 'white' : '#94a3b8',
-                                        border: `1px solid ${selectedDay === day ? '#3b82f6' : 'rgba(255,255,255,0.05)'}`,
+                                        background: selectedDay === day ? 'var(--color-primary)' : 'transparent',
+                                        color: selectedDay === day ? 'white' : 'var(--color-text-muted)',
+                                        border: `1px solid ${selectedDay === day ? 'var(--color-primary)' : 'var(--color-border)'}`,
                                         padding: '0.5rem 1.25rem',
-                                        borderRadius: '0.75rem',
+                                        borderRadius: '0.5rem',
                                         cursor: 'pointer',
                                         fontWeight: 600,
                                         fontSize: '0.9rem',
@@ -571,9 +561,9 @@ const FacultyDashboard = () => {
                                         animate={{ opacity: 1, x: 0 }}
                                         transition={{ delay: idx * 0.05 }}
                                         style={{
-                                            background: 'rgba(30, 41, 59, 0.4)',
-                                            backdropFilter: 'blur(10px)',
-                                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                                            background: 'var(--color-surface)',
+                                            backdropFilter: 'none',
+                                            border: '1px solid var(--color-border)',
                                             borderRadius: '1rem',
                                             padding: '1.25rem',
                                             display: 'flex',
@@ -593,7 +583,7 @@ const FacultyDashboard = () => {
                                                 <span style={{ fontSize: '0.7rem', opacity: 0.8, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Period</span>
                                             </div>
                                             <div>
-                                                <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <h3 style={{ margin: 0, color: 'var(--color-text-main)', fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                     {cls.name}
                                                     {cls.isSubstitution && (
                                                         <span style={{
@@ -639,26 +629,25 @@ const FacultyDashboard = () => {
 
                     {/* Quick Actions */}
                     <section>
-                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <Layers size={24} className="text-gray-400" /> Quick Actions
                         </h2>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.5rem' }}>
                             {quickActions.map((action) => (
                                 <motion.div
                                     key={action.title}
-                                    whileHover={{ scale: 1.02, backgroundColor: 'rgba(30, 41, 59, 0.6)' }}
+                                    whileHover={{ scale: 1.02, backgroundColor: 'var(--color-bg)' }}
                                     whileTap={{ scale: 0.98 }}
                                     style={{
-                                        background: 'rgba(30, 41, 59, 0.4)',
-                                        border: '1px solid rgba(255, 255, 255, 0.05)',
-                                        borderRadius: '1.25rem',
+                                        background: 'var(--color-surface)',
+                                        border: '1px solid var(--color-border)',
+                                        borderRadius: '0.75rem',
                                         padding: '1.5rem',
                                         cursor: 'pointer',
                                         display: 'flex',
                                         alignItems: 'center',
                                         justifyContent: 'space-between',
                                         transition: 'all 0.2s',
-                                        backdropFilter: 'blur(10px)'
                                     }}
                                     onClick={() => navigate(action.path)}
                                 >
@@ -673,7 +662,7 @@ const FacultyDashboard = () => {
                                             <action.icon size={28} />
                                         </div>
                                         <div>
-                                            <h3 style={{ margin: 0, color: '#f8fafc', fontSize: '1.1rem', fontWeight: 600 }}>{action.title}</h3>
+                                            <h3 style={{ margin: 0, color: 'var(--color-text-main)', fontSize: '1.1rem', fontWeight: 600 }}>{action.title}</h3>
                                             <p style={{ margin: '0.25rem 0 0 0', color: '#94a3b8', fontSize: '0.9rem' }}>{action.desc}</p>
                                         </div>
                                     </div>
@@ -693,25 +682,25 @@ const FacultyDashboard = () => {
                     <motion.div
                         variants={itemVariants}
                         style={{
-                            background: 'rgba(30, 41, 59, 0.4)',
-                            border: '1px solid rgba(255, 255, 255, 0.05)',
+                            background: 'var(--color-surface)',
+                            border: '1px solid var(--color-border)',
                             borderRadius: '1.5rem',
                             padding: '2rem'
                         }}
                     >
-                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem', color: '#f1f5f9', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                        <h2 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                             <Bell size={20} className="text-gray-400" /> Recent Updates
                         </h2>
 
                         {dashboardStats.recentActivity && dashboardStats.recentActivity.length > 0 ? (
                             <div style={{ display: 'grid', gap: '1rem' }}>
                                 {dashboardStats.recentActivity.map((activity, idx) => (
-                                    <div key={idx} style={{ display: 'flex', gap: '1rem', padding: '1rem', background: 'rgba(15, 23, 42, 0.4)', borderRadius: '1rem' }}>
+                                    <div key={idx} style={{ display: 'flex', gap: '1rem', padding: '1rem', background: 'var(--color-bg)', borderRadius: '1rem' }}>
                                         <div style={{ padding: '0.75rem', background: 'rgba(59, 130, 246, 0.1)', borderRadius: '0.75rem', height: 'fit-content' }}>
                                             <Layers size={18} color="#60a5fa" />
                                         </div>
                                         <div>
-                                            <p style={{ margin: '0 0 0.25rem 0', color: '#e2e8f0', fontWeight: 500 }}>{activity.title}</p>
+                                            <p style={{ margin: '0 0 0.25rem 0', color: 'var(--color-text-main)', fontWeight: 500 }}>{activity.title}</p>
                                             <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>
                                                 New Assessment in <span style={{ color: '#94a3b8' }}>{activity.subject}</span> • {new Date(activity.date).toLocaleDateString()}
                                             </p>

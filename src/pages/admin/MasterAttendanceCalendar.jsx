@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Calendar, ChevronLeft, ChevronRight, Download, Filter } from 'lucide-react';
 import { getMasterAttendanceReport } from '../../services/reportingService';
 import { fetchAllUsers } from '../../services/adminService';
 import Toast from '../../components/common/Toast';

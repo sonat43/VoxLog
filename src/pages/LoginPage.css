@@ -6,6 +6,9 @@
     position: relative;
     overflow: hidden;
     /* Prevent scrolling */
+    background: #0f172a;
+    /* Force dark background */
+    color: white;
 }
 
 .bg-gradient-mesh {

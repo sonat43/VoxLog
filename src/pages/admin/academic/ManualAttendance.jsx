@@ -87,13 +87,11 @@ const ManualAttendance = () => {
                 dateString: selectedDate
             });
 
-            // Initialize state based on existing records or default to Absent (or empty?)
-            // Let's default to Absent for safety, or leave unset?
-            // "Mark All Present" button helps user.
+            // Initialize state based on existing records or default to null so user is forced to mark
             const newState = {};
             students.forEach(s => {
                 const record = records.find(r => r.studentId === s.id);
-                newState[s.id] = record ? record.status : 'Absent';
+                newState[s.id] = record ? record.status : null;
             });
             setAttendanceState(newState);
         } catch (error) {
@@ -104,10 +102,16 @@ const ManualAttendance = () => {
     };
 
     const toggleStatus = (studentId) => {
-        setAttendanceState(prev => ({
-            ...prev,
-            [studentId]: prev[studentId] === 'Present' ? 'Absent' : 'Present'
-        }));
+        setAttendanceState(prev => {
+            const current = prev[studentId];
+            let next = 'Present';
+            if (current === 'Present') next = 'Absent';
+            else if (current === 'Absent') next = 'Present';
+            return {
+                ...prev,
+                [studentId]: next
+            };
+        });
     };
 
     const markAll = (status) => {
@@ -314,8 +318,8 @@ const ManualAttendance = () => {
                                     onClick={() => toggleStatus(student.id)}
                                     style={{
                                         padding: '1rem', borderRadius: '0.5rem', border: '1px solid', cursor: 'pointer',
-                                        background: attendanceState[student.id] === 'Present' ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                        borderColor: attendanceState[student.id] === 'Present' ? '#10b981' : '#ef4444',
+                                        background: attendanceState[student.id] === 'Present' ? 'rgba(16, 185, 129, 0.1)' : (attendanceState[student.id] === 'Absent' ? 'rgba(239, 68, 68, 0.1)' : 'rgba(255, 255, 255, 0.05)'),
+                                        borderColor: attendanceState[student.id] === 'Present' ? '#10b981' : (attendanceState[student.id] === 'Absent' ? '#ef4444' : '#475569'),
                                         display: 'flex', alignItems: 'center', justifyContent: 'space-between'
                                     }}
                                 >
@@ -325,25 +329,35 @@ const ManualAttendance = () => {
                                     </div>
                                     <div style={{
                                         fontWeight: 'bold',
-                                        color: attendanceState[student.id] === 'Present' ? '#34d399' : '#f87171'
+                                        color: attendanceState[student.id] === 'Present' ? '#34d399' : (attendanceState[student.id] === 'Absent' ? '#f87171' : '#94a3b8')
                                     }}>
-                                        {attendanceState[student.id]}
+                                        {attendanceState[student.id] || 'Not Marked'}
                                     </div>
                                 </div>
                             ))}
                         </div>
 
-                        <div style={{ textAlign: 'right' }}>
-                            <button
-                                onClick={saveAttendance}
-                                disabled={saving}
-                                style={{
-                                    padding: '1rem 3rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '0.5rem',
-                                    fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', opacity: saving ? 0.7 : 1
-                                }}
-                            >
-                                {saving ? 'Saving...' : 'Save Attendance'}
-                            </button>
+                        <div style={{ textAlign: 'right', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '1rem' }}>
+                            {(() => {
+                                const unmarkedCount = students.filter(s => !attendanceState[s.id]).length;
+                                const isReady = unmarkedCount === 0 && students.length > 0;
+                                return isReady ? (
+                                    <button
+                                        onClick={saveAttendance}
+                                        disabled={saving}
+                                        style={{
+                                            padding: '1rem 3rem', background: '#2563eb', color: 'white', border: 'none', borderRadius: '0.5rem',
+                                            fontSize: '1.1rem', fontWeight: 'bold', cursor: 'pointer', opacity: saving ? 0.7 : 1
+                                        }}
+                                    >
+                                        {saving ? 'Saving...' : 'Save Attendance'}
+                                    </button>
+                                ) : (
+                                    <div style={{ color: '#f87171', fontWeight: 600, padding: '1rem' }}>
+                                        Cannot save: {unmarkedCount} student{unmarkedCount !== 1 ? 's' : ''} left to mark
+                                    </div>
+                                );
+                            })()}
                         </div>
                     </div>
                 ) : (

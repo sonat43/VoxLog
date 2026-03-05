@@ -172,8 +172,8 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                             {courses.filter(c => c.status === 'active').length === 0 ? (
                                 <div style={{
                                     padding: '1rem',
-                                    background: '#fee2e2',
-                                    color: '#b91c1c',
+                                    background: 'rgba(239, 68, 68, 0.1)',
+                                    color: 'var(--color-error)',
                                     borderRadius: '0.5rem',
                                     display: 'flex',
                                     alignItems: 'center',
@@ -310,7 +310,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                         background: 'rgba(59, 130, 246, 0.1)',
                                         borderRadius: '50%',
                                         display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                        color: '#3b82f6'
+                                        color: 'var(--color-primary)'
                                     }}>
                                         <Camera size={32} />
                                     </div>
@@ -339,7 +339,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                 justifyContent: 'center'
                             }}>
                                 <svg style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
-                                    <circle cx="60" cy="60" r="54" fill="none" stroke="#e2e8f0" strokeWidth="12" />
+                                    <circle cx="60" cy="60" r="54" fill="none" stroke="var(--color-border)" strokeWidth="12" />
                                     <circle cx="60" cy="60" r="54" fill="none" stroke="var(--color-accent)" strokeWidth="12"
                                         strokeDasharray="339.292"
                                         strokeDashoffset={339.292 - (339.292 * aiConfidence / 100)}

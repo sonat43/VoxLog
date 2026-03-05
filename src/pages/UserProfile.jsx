@@ -34,6 +34,7 @@ const UserProfile = () => {
     const [status, setStatus] = useState(null);
     const [activeTab, setActiveTab] = useState('personal');
     const [errors, setErrors] = useState({});
+    const [imageKey, setImageKey] = useState(Date.now());
 
     // Premium Gold Accent Color for "Precious" feel
     const GOLD_ACCENT = '#fbbf24';
@@ -67,6 +68,12 @@ const UserProfile = () => {
                 linkedInProfile: user.linkedInProfile || '',
                 googleScholarProfile: user.googleScholarProfile || ''
             });
+
+            // Check for Local Profile Picture override
+            const localPic = localStorage.getItem(`user_profile_pic_${user.uid}`);
+            if (localPic) {
+                setFormData(prev => ({ ...prev, photoURL: localPic }));
+            }
         }
         setErrors({});
     }, [user, role]);
@@ -132,9 +139,12 @@ const UserProfile = () => {
     };
 
 
-    const handleImageUpload = async (e) => {
+    const handleImageUpload = (e) => {
         const file = e.target.files[0];
         if (!file) return;
+
+        // Reset input to allow re-uploading the same file
+        e.target.value = '';
 
         // Validations
         if (!file.type.startsWith('image/')) {
@@ -149,47 +159,32 @@ const UserProfile = () => {
         setLoading(true);
         setStatus(null);
 
-        try {
-            // Strict filepath per security rules: profile_photos/<uid>
-            // We overwrite the existing file.
-            const storageRef = ref(storage, `profile_photos/${user.uid}`);
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            try {
+                const base64String = reader.result;
+                // Save to Local Storage with User ID key
+                localStorage.setItem(`user_profile_pic_${user.uid}`, base64String);
 
-            // Upload the file
-            await uploadBytes(storageRef, file);
+                // Update Local State
+                setFormData(prev => ({ ...prev, photoURL: base64String }));
+                setImageKey(Date.now());
 
-            // Get the download URL
-            const photoURL = await getDownloadURL(storageRef);
-            console.log("Uploaded Image URL:", photoURL);
+                // Dispatch a custom event so other components (like DashboardLayout) can update immediately
+                window.dispatchEvent(new Event('profile-pic-updated'));
 
-            // Update Firestore
-            const userRef = doc(db, 'users', user.uid);
-            await updateDoc(userRef, { photoURL });
-
-            // Force visual refresh
-            const uniqueURL = `${photoURL}?t=${Date.now()}`;
-            setFormData(prev => ({ ...prev, photoURL: uniqueURL }));
-
-            alert("Profile Picture Updated Successfully!");
-            setStatus('success');
-            setTimeout(() => setStatus(null), 3000);
-        } catch (error) {
-            console.error("Error uploading image:", error);
-            // Show specific error if possible
-            let errorMessage = 'Error uploading image';
-            if (error.code === 'storage/unauthorized') {
-                errorMessage = 'Permission denied. Check Firebase Storage rules.';
-            } else if (error.code === 'storage/canceled') {
-                errorMessage = 'Upload canceled.';
-            } else if (error.code === 'storage/unknown') {
-                errorMessage = 'Unknown error occurred. Please try again.';
-            } else if (error.message) {
-                errorMessage = error.message;
+                // alert("Profile Picture Updated Locally!"); // Removed blocking alert
+                setStatus('success');
+                setTimeout(() => setStatus(null), 3000);
+            } catch (error) {
+                console.error("Error saving to local storage:", error);
+                alert("Failed to save image locally. It might be too large.");
+                setStatus('error: Storage limit exceeded');
+            } finally {
+                setLoading(false);
             }
-            alert("Upload Failed: " + errorMessage); // Explicit Alert
-            setStatus('error:' + errorMessage);
-        } finally {
-            setLoading(false);
-        }
+        };
+        reader.readAsDataURL(file);
     };
 
     const handleSubmit = async (e) => {
@@ -319,8 +314,10 @@ const UserProfile = () => {
                     }}>
                         {formData.photoURL ? (
                             <img
-                                src={formData.photoURL.includes('?') ? formData.photoURL : `${formData.photoURL}?t=${new Date().getTime()}`}
-                                key={formData.photoURL}
+                                src={formData.photoURL.startsWith('data:') || formData.photoURL.includes('?')
+                                    ? formData.photoURL
+                                    : `${formData.photoURL}?t=${imageKey}`}
+                                key={imageKey}
                                 alt="Profile"
                                 style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                             />

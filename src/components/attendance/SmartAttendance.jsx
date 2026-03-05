@@ -35,6 +35,7 @@ const SmartAttendance = ({ course, onClose }) => {
     const [cameraReady, setCameraReady] = useState(false);
     const [recordedAudioUrl, setRecordedAudioUrl] = useState(null);
     const [processingMessage, setProcessingMessage] = useState("");
+    const [evidence, setEvidence] = useState({ image: null, audio: null });
 
     useEffect(() => {
         fetchStudents();
@@ -156,6 +157,9 @@ const SmartAttendance = ({ course, onClose }) => {
             const blob = await res.blob();
             const result = await getHeadcount(blob);
             setHeadcount(result.count);
+            if (result.filename) {
+                setEvidence(prev => ({ ...prev, image: result.filename }));
+            }
             setStep('headcount');
         } catch (err) {
             setError("Capture failed: " + err.message);
@@ -448,6 +452,9 @@ const SmartAttendance = ({ course, onClose }) => {
 
             setTranscribedText(result.text);
             setRecognizedRollNumbers(result.roll_numbers);
+            if (result.filename) {
+                setEvidence(prev => ({ ...prev, audio: result.filename }));
+            }
             console.log("[DEBUG] Backend Roll Numbers:", result.roll_numbers);
 
             if (students.length === 0) {
@@ -505,7 +512,8 @@ const SmartAttendance = ({ course, onClose }) => {
                 status: 'completed',
                 presentStudentIds: presentStudentIds,
                 headcount: headcount,
-                voiceCount: presentStudentIds.length
+                voiceCount: presentStudentIds.length,
+                evidence: evidence // Pass evidence filenames
             });
             onClose();
         } catch (err) {
@@ -531,22 +539,42 @@ const SmartAttendance = ({ course, onClose }) => {
             URL.revokeObjectURL(recordedAudioUrl);
             setRecordedAudioUrl(null);
         }
+        setEvidence({ image: null, audio: null });
         const initialMap = {};
         students.forEach(s => initialMap[s.id] = 'Absent');
         setAttendanceMap(initialMap);
         startCamera();
     };
 
+    const handleRedoVoice = () => {
+        // Reset attendance to all Absent to avoid merging with previous attempt
+        const initialMap = {};
+        students.forEach(s => initialMap[s.id] = 'Absent');
+        setAttendanceMap(initialMap);
+
+        // Clear audio evidence and transcription
+        setEvidence(prev => ({ ...prev, audio: null }));
+        setTranscribedText("");
+        setRecognizedRollNumbers([]);
+        if (recordedAudioUrl) {
+            URL.revokeObjectURL(recordedAudioUrl);
+            setRecordedAudioUrl(null);
+        }
+
+        setStep('voice');
+        setMismatchPrompt(false);
+    };
+
     return (
-        <div style={{ padding: '1rem', color: 'white' }}>
-            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '1rem' }}>
+        <div style={{ padding: '1rem', color: 'var(--color-text-main)' }}>
+            <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {course?.name}
                     <span style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.2rem 0.6rem', borderRadius: '0.5rem', textTransform: 'uppercase' }}>
                         Period {course?.periodIndex !== undefined ? course.periodIndex + 1 : '?'}
                     </span>
                 </div>
-                <div style={{ color: '#94a3b8', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
                     {course?.code} • Section {course?.section || 'N/A'}
                 </div>
             </div>
@@ -573,7 +601,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                 disabled={loading || !cameraReady}
                                 style={{
                                     padding: '1rem 2rem',
-                                    background: cameraReady ? '#3b82f6' : '#475569',
+                                    background: cameraReady ? 'var(--color-primary)' : 'var(--color-secondary)',
                                     color: 'white',
                                     border: 'none',
                                     borderRadius: '3rem',
@@ -583,7 +611,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                     gap: '0.75rem',
                                     cursor: cameraReady ? 'pointer' : 'not-allowed',
                                     opacity: loading ? 0.7 : 1,
-                                    boxShadow: cameraReady ? '0 4px 15px rgba(59, 130, 246, 0.3)' : 'none'
+                                    boxShadow: cameraReady ? '0 4px 15px var(--color-accent-light)' : 'none'
                                 }}
                             >
                                 {loading ? <RefreshCw className="animate-spin" /> : <Camera />}
@@ -597,14 +625,14 @@ const SmartAttendance = ({ course, onClose }) => {
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>
                         <div style={{ marginBottom: '2rem' }}>
                             <div style={{ fontSize: '1.5rem', color: '#94a3b8', marginBottom: '0.5rem' }}>Students Counted</div>
-                            <div style={{ fontSize: '5rem', fontWeight: 800, color: '#3b82f6' }}>{headcount}</div>
+                            <div style={{ fontSize: '5rem', fontWeight: 800, color: 'var(--color-primary)' }}>{headcount}</div>
                         </div>
                         <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>Next, please say the roll numbers of students who are present.</p>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
                             <button onClick={resetFlow} style={{ padding: '0.75rem 1.5rem', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '0.5rem', cursor: 'pointer' }}>
                                 Retake Picture
                             </button>
-                            <button onClick={() => setStep('voice')} style={{ padding: '0.75rem 1.5rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
+                            <button onClick={() => setStep('voice')} style={{ padding: '0.75rem 1.5rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
                                 Start Roll Call
                             </button>
                         </div>
@@ -637,10 +665,10 @@ const SmartAttendance = ({ course, onClose }) => {
 
                         <div style={{ marginBottom: '2.5rem', position: 'relative' }}>
                             <div className={`pulse-ring ${recording ? 'active' : ''}`} style={{ width: '120px', height: '120px', borderRadius: '50%', background: 'rgba(59, 130, 246, 0.1)', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <Mic size={48} color={recording ? '#3b82f6' : '#94a3b8'} />
+                                <Mic size={48} color={recording ? 'var(--color-primary)' : 'var(--color-text-muted)'} />
                             </div>
                             {recording && (
-                                <div style={{ marginTop: '1rem', color: '#3b82f6', fontWeight: 600 }} className="animate-pulse">Recording...</div>
+                                <div style={{ marginTop: '1rem', color: 'var(--color-primary)', fontWeight: 600 }} className="animate-pulse">Recording...</div>
                             )}
                         </div>
                         <h3 style={{ fontSize: '1.25rem', marginBottom: '1rem' }}>Listening for Roll Numbers</h3>
@@ -663,7 +691,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                 STATUS: {recognitionStatus.replace('-', ' ').toUpperCase()}
                             </div>
                             {transcribedText ? (
-                                <div style={{ color: '#3b82f6', fontStyle: 'italic', fontSize: '1rem' }}>"{transcribedText}"</div>
+                                <div style={{ color: 'var(--color-primary)', fontStyle: 'italic', fontSize: '1rem' }}>"{transcribedText}"</div>
                             ) : (
                                 <div style={{ color: '#475569', fontSize: '0.9rem' }}>
                                     {recognitionStatus === 'starting' ? 'Initializing microphone...' :
@@ -689,11 +717,11 @@ const SmartAttendance = ({ course, onClose }) => {
                                     style={{
                                         width: '100%',
                                         height: '100px',
-                                        background: 'rgba(255,255,255,0.05)',
-                                        border: '1px solid rgba(255,255,255,0.1)',
+                                        background: 'var(--color-bg)',
+                                        border: '1px solid var(--color-border)',
                                         borderRadius: '0.75rem',
                                         padding: '1rem',
-                                        color: 'white',
+                                        color: 'var(--color-text-main)',
                                         fontSize: '1rem',
                                         marginBottom: '1rem',
                                         resize: 'none',
@@ -703,13 +731,13 @@ const SmartAttendance = ({ course, onClose }) => {
                                 <div style={{ display: 'flex', gap: '1rem' }}>
                                     <button
                                         onClick={() => setManualInput(false)}
-                                        style={{ flex: 1, padding: '0.75rem', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)', color: '#94a3b8', borderRadius: '0.5rem', cursor: 'pointer' }}
+                                        style={{ flex: 1, padding: '0.75rem', background: 'transparent', border: '1px solid var(--color-border)', color: 'var(--color-text-muted)', borderRadius: '0.5rem', cursor: 'pointer' }}
                                     >
                                         Back to Voice
                                     </button>
                                     <button
                                         onClick={handleManualSubmit}
-                                        style={{ flex: 2, padding: '0.75rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
+                                        style={{ flex: 2, padding: '0.75rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}
                                     >
                                         Identify Students
                                     </button>
@@ -718,11 +746,11 @@ const SmartAttendance = ({ course, onClose }) => {
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
                                 {!recording ? (
-                                    <button onClick={startRecording} style={{ padding: '1rem 2.5rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '3rem', fontWeight: 600, cursor: 'pointer' }}>
+                                    <button onClick={startRecording} style={{ padding: '1rem 2.5rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '3rem', fontWeight: 600, cursor: 'pointer' }}>
                                         Start Speaking
                                     </button>
                                 ) : (
-                                    <button onClick={stopRecording} style={{ padding: '1rem 2.5rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '3rem', fontWeight: 600, cursor: 'pointer' }}>
+                                    <button onClick={stopRecording} style={{ padding: '1rem 2.5rem', background: 'var(--color-error)', color: 'white', border: 'none', borderRadius: '3rem', fontWeight: 600, cursor: 'pointer' }}>
                                         Stop & Process
                                     </button>
                                 )}
@@ -748,7 +776,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
                                     <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Present</div>
-                                    <div style={{ fontWeight: 700, color: Object.values(attendanceMap).filter(v => v === 'Present').length === headcount ? '#34d399' : '#f59e0b' }}>
+                                    <div style={{ fontWeight: 700, color: Object.values(attendanceMap).filter(v => v === 'Present').length === headcount ? 'var(--color-success)' : 'var(--color-warning)' }}>
                                         {Object.values(attendanceMap).filter(v => v === 'Present').length}
                                     </div>
                                 </div>
@@ -759,13 +787,13 @@ const SmartAttendance = ({ course, onClose }) => {
                         <div style={{
                             marginBottom: '1rem',
                             padding: '0.75rem',
-                            background: 'rgba(255,255,255,0.03)',
+                            background: 'var(--color-bg)',
                             borderRadius: '0.5rem',
-                            border: '1px dashed rgba(255,255,255,0.1)'
+                            border: '1px dashed var(--color-border)'
                         }}>
                             <div style={{ marginBottom: '0.5rem' }}>
                                 <div style={{ fontSize: '0.7rem', color: '#94a3b8', marginBottom: '0.25rem' }}>Full Transcript:</div>
-                                <div style={{ fontSize: '0.85rem', color: '#cbd5e1', fontStyle: 'italic', lineHeight: '1.4' }}>
+                                <div style={{ fontSize: '0.85rem', color: 'var(--color-text-muted)', fontStyle: 'italic', lineHeight: '1.4' }}>
                                     "{transcribedText || 'No clear speech detected'}"
                                 </div>
                             </div>
@@ -827,7 +855,7 @@ const SmartAttendance = ({ course, onClose }) => {
                                             <Camera size={14} /> Retake Picture
                                         </button>
                                         <button
-                                            onClick={() => { setStep('voice'); setMismatchPrompt(false); }}
+                                            onClick={handleRedoVoice}
                                             style={{ padding: '0.5rem 1rem', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '0.5rem', fontSize: '0.85rem', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                                         >
                                             <Mic size={14} /> Redo Voice Call

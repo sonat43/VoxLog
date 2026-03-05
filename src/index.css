@@ -1,48 +1,56 @@
 :root {
-  /* Primary Palette: Admin Dashboard Professional Dark Mode */
-  --color-bg: #0a0f1e;
-  /* Dark Indigo Background - Matches Admin */
-  --color-surface: #111827;
-  /* Gray 900 - Card Surface */
-  --color-primary: #14b8a6;
-  /* Teal 500 - Primary Brand */
-  --color-accent: #06b6d4;
-  /* Cyan 500 - Accents */
-  --color-accent-light: rgba(6, 182, 212, 0.1);
-  /* Low Opacity Accent */
+  /* Default: Custom Premium Light Theme */
+  --color-bg: #f8fafc;
+  --color-surface: #ffffff;
+  --color-primary: #1e3a8a;
+  --color-accent: #3b82f6;
+  --color-accent-light: rgba(59, 130, 246, 0.1);
+  --color-text-main: #0f172a;
+  --color-text-muted: #64748b;
+  --color-border: #e2e8f0;
 
-  --color-text-main: #f3f4f6;
-  /* Gray 100 - Main Text */
-  --color-text-muted: #9ca3af;
-  /* Gray 400 - Secondary Text */
-  --color-border: rgba(255, 255, 255, 0.1);
-  /* Subtle Border */
+  --color-secondary: #64748b;
+  --color-error: #ef4444;
+  --color-success: #16a34a;
+  --color-warning: #f59e0b;
 
-  --color-secondary: #a78bfa;
-  /* Soft Purple - Secondary Brand */
-  --color-error: #f87171;
-  /* Red 400 */
-  --color-success: #34d399;
-  /* Emerald 400 */
+  /* Shadows - Soft and elegant for light mode */
+  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
 
-  /* Glassmorphism / Shadows */
-  --glass-bg: rgba(17, 24, 39, 0.7);
-  --glass-border: rgba(255, 255, 255, 0.08);
-  --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -1px rgba(0, 0, 0, 0.2);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.4), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+  color-scheme: light dark;
+}
 
-  font-family: 'Inter', system-ui, -apple-system, sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
+/* Dark Mode Overrides - Professional Slate/Night Theme */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f172a;
+    /* Slate 900 */
+    --color-surface: #1e293b;
+    /* Slate 800 */
+    --color-primary: #60a5fa;
+    /* Blue 400 - Brighter for dark mode */
+    --color-accent: #38bdf8;
+    /* Sky 400 */
+    --color-accent-light: rgba(56, 189, 248, 0.15);
 
-  color-scheme: dark;
-  color: var(--color-text-main);
-  background-color: var(--color-bg);
-  background-image:
-    radial-gradient(circle at 15% 50%, rgba(6, 182, 212, 0.08) 0%, transparent 25%),
-    radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.08) 0%, transparent 25%);
-  background-attachment: fixed;
+    --color-text-main: #f1f5f9;
+    /* Slate 100 */
+    --color-text-muted: #94a3b8;
+    /* Slate 400 */
+    --color-border: #334155;
+    /* Slate 700 */
+
+    --color-secondary: #94a3b8;
+    --color-success: #22c55e;
+    /* Green 500 */
+
+    /* Shadows - More subtle glow for dark mode */
+    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.5);
+    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5), 0 2px 4px -1px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -2px rgba(0, 0, 0, 0.3);
+  }
 }
 
 body {

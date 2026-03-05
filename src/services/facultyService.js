@@ -15,6 +15,7 @@ import {
     writeBatch
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
+import { sendDailyParentReport } from './emailService';
 
 const getBackendUrl = () => {
     // If we're on localhost, assume backend is too. 
@@ -324,6 +325,7 @@ export const saveAttendanceSession = async (sessionData) => {
         batch.set(sessionRef, {
             ...sessionData,
             role: sessionData.role || 'Regular',
+            evidence: sessionData.evidence || null, // Capture evidence (filenames)
             timestamp: serverTimestamp()
         });
 
@@ -464,6 +466,92 @@ export const getAttendanceHistory = async (facultyId) => {
     } catch (error) {
         console.error("Error fetching attendance history:", error);
         return [];
+    }
+};
+
+export const processEndOfDayEmails = async () => {
+    try {
+        const todayStr = new Date().toISOString().split('T')[0];
+        console.log(`[EOD] Processing end-of-day emails for ${todayStr}...`);
+
+        // 1. Fetch all attendance records for today
+        const qRecords = query(
+            collection(db, "attendance_records"),
+            where("dateString", "==", todayStr)
+        );
+        const recordSnap = await getDocs(qRecords);
+
+        if (recordSnap.empty) {
+            console.log("[EOD] No attendance records found for today.");
+            return { success: true, count: 0, message: "No records to process today." };
+        }
+
+        // 2. Group records by Student ID
+        const recordsByStudent = {};
+        recordSnap.docs.forEach(doc => {
+            const data = doc.data();
+            if (!recordsByStudent[data.studentId]) {
+                recordsByStudent[data.studentId] = [];
+            }
+            recordsByStudent[data.studentId].push(data);
+        });
+
+        // 3. Process each student
+        let emailsSent = 0;
+        let emailsFailed = 0;
+        let studentsWithNoEmail = 0;
+        let lastError = null;
+        const studentIds = Object.keys(recordsByStudent);
+
+        for (const studentId of studentIds) {
+            // Fetch student info
+            const studentRef = doc(db, "students", studentId);
+            const studentSnap = await getDoc(studentRef);
+
+            if (studentSnap.exists()) {
+                const studentData = studentSnap.data();
+
+                // Only send if parentEmail exists
+                if (studentData.parentEmail && studentData.parentEmail.trim() !== '') {
+                    const records = recordsByStudent[studentId];
+                    // Sort records by slotTime or subject name to ensure consistent order
+                    records.sort((a, b) => (a.slotTime || '').localeCompare(b.slotTime || ''));
+
+                    const result = await sendDailyParentReport(
+                        studentData.parentEmail,
+                        { name: studentData.name, regNo: studentData.regNo },
+                        records,
+                        todayStr
+                    );
+
+                    if (result.success) {
+                        emailsSent++;
+                    } else {
+                        emailsFailed++;
+                        lastError = result.error;
+                    }
+                } else {
+                    studentsWithNoEmail++;
+                }
+            }
+        }
+
+        console.log(`[EOD] Processed. Sent: ${emailsSent}, Failed: ${emailsFailed}, Skipped: ${studentsWithNoEmail}`);
+
+        let msg = `Sent: ${emailsSent}.`;
+        if (studentsWithNoEmail > 0) msg += ` Skipped ${studentsWithNoEmail} (missing parent email).`;
+        if (emailsFailed > 0) msg += ` Failed ${emailsFailed} (Error: ${lastError}).`;
+        if (emailsSent === 0 && emailsFailed === 0 && studentsWithNoEmail === 0) msg = "No attendance records found to process today.";
+
+        return {
+            success: emailsFailed === 0,
+            count: emailsSent,
+            message: msg
+        };
+
+    } catch (error) {
+        console.error("[EOD] Error processing end-of-day emails:", error);
+        throw error;
     }
 };
 

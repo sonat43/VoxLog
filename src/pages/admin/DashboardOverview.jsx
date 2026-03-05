@@ -1,8 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Users, GraduationCap, Layers, Book, Clock } from 'lucide-react';
+import { Users, GraduationCap, Layers, Book, Clock, Send } from 'lucide-react';
 import { fetchAllUsers } from '../../services/adminService';
 import { getAllStudents, getDepartments, getCourses, getSubjects, getRecentAttendanceActivity } from '../../services/academicService';
+import { processEndOfDayEmails } from '../../services/facultyService';
+import Toast from '../../components/common/Toast';
 import { motion } from 'framer-motion';
 
 const DashboardOverview = () => {
@@ -15,6 +17,9 @@ const DashboardOverview = () => {
     });
     const [recentActivity, setRecentActivity] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [sendingEmails, setSendingEmails] = useState(false);
+    const [toast, setToast] = useState(null);
+    const [showConfirmModal, setShowConfirmModal] = useState(false);
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -78,6 +83,19 @@ const DashboardOverview = () => {
         show: { opacity: 1, y: 0 }
     };
 
+    const handleSendEndOfDayReports = async () => {
+        setShowConfirmModal(false);
+        setSendingEmails(true);
+        try {
+            const result = await processEndOfDayEmails();
+            setToast({ message: result.message, type: result.success ? 'success' : 'error' });
+        } catch (error) {
+            setToast({ message: "Error sending reports: " + error.message, type: 'error' });
+        } finally {
+            setSendingEmails(false);
+        }
+    };
+
     return (
         <motion.div
             variants={containerVariants}
@@ -98,18 +116,36 @@ const DashboardOverview = () => {
                     backdropFilter: 'blur(10px)'
                 }}
             >
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                    <h1 style={{
-                        margin: '0 0 1rem 0', fontSize: '2.5rem', fontWeight: 800,
-                        background: 'linear-gradient(to right, #fff, #94a3b8)',
-                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
-                    }}>
-                        Welcome, {user?.displayName || user?.email?.split('@')[0] || 'Administrator'}
-                    </h1>
-                    <p style={{ margin: 0, color: '#9ca3af', maxWidth: '600px', fontSize: '1.1rem', lineHeight: '1.6' }}>
-                        Your central command center for managing academic attendance verification.
-                        System status is <strong style={{ color: '#34d399' }}>Healthy</strong>.
-                    </p>
+                <div style={{ position: 'relative', zIndex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '20px' }}>
+                    <div>
+                        <h1 style={{
+                            margin: '0 0 1rem 0', fontSize: '2.5rem', fontWeight: 800,
+                            background: 'linear-gradient(to right, #fff, #94a3b8)',
+                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent'
+                        }}>
+                            Welcome, {user?.displayName || user?.email?.split('@')[0] || 'Administrator'}
+                        </h1>
+                        <p style={{ margin: 0, color: '#9ca3af', maxWidth: '600px', fontSize: '1.1rem', lineHeight: '1.6' }}>
+                            Your central command center for managing academic attendance verification.
+                            System status is <strong style={{ color: '#34d399' }}>Healthy</strong>.
+                        </p>
+                    </div>
+                    <div>
+                        <button
+                            onClick={() => setShowConfirmModal(true)}
+                            disabled={sendingEmails}
+                            style={{
+                                padding: '12px 24px', borderRadius: '12px', background: sendingEmails ? '#475569' : 'linear-gradient(135deg, #3b82f6, #2563eb)', color: 'white', border: '1px solid rgba(255,255,255,0.1)',
+                                fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: sendingEmails ? 'not-allowed' : 'pointer', height: 'fit-content',
+                                boxShadow: '0 4px 12px rgba(37, 99, 235, 0.3)', transition: 'all 0.2s', fontSize: '1rem'
+                            }}
+                            onMouseOver={(e) => { if (!sendingEmails) e.currentTarget.style.transform = 'translateY(-2px)' }}
+                            onMouseOut={(e) => { if (!sendingEmails) e.currentTarget.style.transform = 'translateY(0)' }}
+                        >
+                            <Send size={18} />
+                            {sendingEmails ? 'Processing...' : 'Send Daily Reports To Parents'}
+                        </button>
+                    </div>
                 </div>
                 {/* Decorative Pattern */}
                 <div style={{
@@ -230,6 +266,52 @@ const DashboardOverview = () => {
                     </div>
                 )}
             </motion.div>
+
+            {/* Custom Confirmation Modal */}
+            {showConfirmModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(15, 23, 42, 0.75)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50
+                }}>
+                    <motion.div
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        style={{
+                            background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)',
+                            borderRadius: '16px', padding: '32px', maxWidth: '400px', width: '90%',
+                            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)'
+                        }}
+                    >
+                        <h3 style={{ margin: '0 0 16px', color: 'white', fontSize: '1.25rem' }}>Send Daily Reports?</h3>
+                        <p style={{ color: '#94a3b8', marginBottom: '24px', lineHeight: 1.5 }}>
+                            Are you sure you want to process and send End of Day attendance reports to all parents? This action will email all parents of students whose attendance was marked today.
+                        </p>
+                        <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+                            <button
+                                onClick={() => setShowConfirmModal(false)}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '8px', background: 'transparent',
+                                    border: '1px solid rgba(255,255,255,0.2)', color: 'white', cursor: 'pointer'
+                                }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleSendEndOfDayReports}
+                                style={{
+                                    padding: '8px 16px', borderRadius: '8px', background: '#3b82f6',
+                                    border: 'none', color: 'white', fontWeight: 600, cursor: 'pointer'
+                                }}
+                            >
+                                Yes, Send Reports
+                            </button>
+                        </div>
+                    </motion.div>
+                </div>
+            )}
+
+            {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </motion.div>
     );
 };

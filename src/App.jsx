@@ -11,8 +11,8 @@ import FacultyReports from './pages/faculty/Reports';
 import AcademicProgress from './pages/faculty/AcademicProgress';
 import Gradebook from './pages/faculty/Gradebook';
 import MyClass from './pages/faculty/MyClass';
-import History from './pages/faculty/History';
 import FacultyTimetables from './pages/faculty/FacultyTimetables';
+import MyAttendance from './pages/faculty/MyAttendance';
 
 import './App.css';
 
@@ -35,6 +35,7 @@ import AttendanceRecords from './pages/admin/academic/AttendanceRecords';
 import ManualAttendance from './pages/admin/academic/ManualAttendance';
 import LeaveApproval from './pages/admin/LeaveApproval';
 import MasterAttendanceCalendar from './pages/admin/MasterAttendanceCalendar';
+import AdminFacultyAttendance from './pages/admin/AdminFacultyAttendance';
 import LeaveManagement from './pages/faculty/LeaveManagement';
 import SubstitutionPage from './pages/faculty/SubstitutionPage';
 
@@ -92,6 +93,7 @@ function App() {
             <Route path="leaves" element={<LeaveApproval />} />
             <Route path="substitutions" element={<SubstitutionPage />} />
             <Route path="master-calendar" element={<MasterAttendanceCalendar />} />
+            <Route path="faculty-attendance" element={<AdminFacultyAttendance />} />
 
             <Route path="settings" element={<SettingsConfig />} />
             <Route path="seed" element={<Seeder />} />
@@ -108,10 +110,10 @@ function App() {
             <Route path="courses" element={<FacultyCourses />} />
             <Route path="my-class" element={<MyClass />} />
             <Route path="academic-progress" element={<AcademicProgress />} />
-            <Route path="history" element={<History />} />
             <Route path="leave-management" element={<LeaveManagement />} />
             <Route path="substitutions" element={<SubstitutionPage />} />
             <Route path="timetables" element={<FacultyTimetables />} />
+            <Route path="my-attendance" element={<MyAttendance />} />
 
             <Route path="profile" element={<UserProfile />} />
           </Route>

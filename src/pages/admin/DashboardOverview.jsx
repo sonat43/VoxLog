@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Users, GraduationCap, Layers, Book, Clock, Send } from 'lucide-react';
-import { fetchAllUsers } from '../../services/adminService';
+import { Users, GraduationCap, Layers, Book, Clock, Send, RefreshCw } from 'lucide-react';
+import { fetchAllUsers, getWeeklyAttendanceAnalytics } from '../../services/adminService';
 import { getAllStudents, getDepartments, getCourses, getSubjects, getRecentAttendanceActivity } from '../../services/academicService';
 import { processEndOfDayEmails } from '../../services/facultyService';
+import { getAllTodaysSubstitutions } from '../../services/substitutionService';
+import { getTodayFacultyAttendance } from '../../services/adminService';
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Toast from '../../components/common/Toast';
 import { motion } from 'framer-motion';
 
@@ -16,6 +19,9 @@ const DashboardOverview = () => {
         courses: 0
     });
     const [recentActivity, setRecentActivity] = useState([]);
+    const [attendanceData, setAttendanceData] = useState([]);
+    const [todaysSubstitutions, setTodaysSubstitutions] = useState([]);
+    const [todaysFacultyAttendance, setTodaysFacultyAttendance] = useState([]);
     const [loading, setLoading] = useState(true);
     const [sendingEmails, setSendingEmails] = useState(false);
     const [toast, setToast] = useState(null);
@@ -24,13 +30,16 @@ const DashboardOverview = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const [users, students, depts, courses, subjects, recent] = await Promise.all([
+                const [users, students, depts, courses, subjects, recent, weeklyAnalytics, subs, todaysFacAtt] = await Promise.all([
                     fetchAllUsers(),
                     getAllStudents(),
                     getDepartments(),
                     getCourses(),
                     getSubjects(),
-                    getRecentAttendanceActivity(5)
+                    getRecentAttendanceActivity(5),
+                    getWeeklyAttendanceAnalytics(),
+                    getAllTodaysSubstitutions(new Date().toISOString().split('T')[0]),
+                    getTodayFacultyAttendance()
                 ]);
 
                 setStats({
@@ -50,6 +59,18 @@ const DashboardOverview = () => {
                     };
                 });
                 setRecentActivity(enrichedActivity);
+                setAttendanceData(weeklyAnalytics);
+                setTodaysSubstitutions(subs);
+
+                // Map faculty names to their attendance
+                const enrichedFacAtt = todaysFacAtt.map(att => {
+                    const fac = users.find(u => u.id === att.facultyId);
+                    return {
+                        ...att,
+                        facultyName: fac?.displayName || fac?.email?.split('@')[0] || 'Unknown Faculty'
+                    };
+                });
+                setTodaysFacultyAttendance(enrichedFacAtt);
 
             } catch (error) {
                 console.error("Error loading dashboard stats:", error);
@@ -156,6 +177,135 @@ const DashboardOverview = () => {
                     filter: 'blur(60px)',
                     pointerEvents: 'none'
                 }} />
+            </motion.div>
+
+            {/* Charts & Substitutions Row */}
+            <motion.div variants={itemVariants} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+                {/* Attendance Chart */}
+                <div style={{
+                    background: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '1.25rem',
+                    padding: '1.5rem',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                }}>
+                    <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc', fontWeight: 600 }}>Weekly Attendance Trends</h3>
+                    <div style={{ width: '100%', height: 250 }}>
+                        <ResponsiveContainer>
+                            <AreaChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                <defs>
+                                    <linearGradient id="colorPercent" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3} />
+                                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis dataKey="displayDate" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} />
+                                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} domain={[0, 100]} />
+                                <Tooltip
+                                    contentStyle={{ background: '#1e293b', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '8px', color: '#f8fafc' }}
+                                    itemStyle={{ color: '#3b82f6' }}
+                                />
+                                <Area type="monotone" dataKey="percentage" name="Attendance %" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorPercent)" />
+                            </AreaChart>
+                        </ResponsiveContainer>
+                    </div>
+                </div>
+
+                {/* Substitutions */}
+                <div style={{
+                    background: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '1.25rem',
+                    padding: '1.5rem',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                    display: 'flex', flexDirection: 'column'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ margin: 0, color: '#f8fafc', fontWeight: 600 }}>Today's Substitutions</h3>
+                        <span style={{ background: 'rgba(245, 158, 11, 0.15)', color: '#f59e0b', padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 600 }}>
+                            {todaysSubstitutions.length} Active
+                        </span>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '250px' }}>
+                        {todaysSubstitutions.length === 0 ? (
+                            <div style={{ color: '#64748b', textAlign: 'center', margin: 'auto' }}>No substitutions scheduled for today.</div>
+                        ) : (
+                            todaysSubstitutions.map((sub, idx) => (
+                                <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '1rem' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                                        <strong style={{ color: '#e2e8f0' }}>{sub.subjectName}</strong>
+                                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{sub.timeRange}</span>
+                                    </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
+                                        <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>{sub.originalFacultyName}</span>
+                                        <RefreshCw size={14} color="#94a3b8" />
+                                        <span style={{ color: '#10b981' }}>{sub.substituteName}</span>
+                                    </div>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
+                {/* Today's Faculty Attendance Widget */}
+                <div style={{
+                    background: 'rgba(30, 41, 59, 0.7)',
+                    backdropFilter: 'blur(12px)',
+                    border: '1px solid rgba(255, 255, 255, 0.05)',
+                    borderRadius: '1.25rem',
+                    padding: '1.5rem',
+                    boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                    display: 'flex', flexDirection: 'column'
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                        <h3 style={{ margin: 0, color: '#f8fafc', fontWeight: 600 }}>Faculty Daily Logs</h3>
+                        <span style={{
+                            background: todaysFacultyAttendance.length > 0 ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.05)',
+                            color: todaysFacultyAttendance.length > 0 ? '#10b981' : '#94a3b8',
+                            padding: '4px 10px', borderRadius: '12px', fontSize: '0.8rem', fontWeight: 600
+                        }}>
+                            {todaysFacultyAttendance.length} Evaluated
+                        </span>
+                    </div>
+                    <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.75rem', paddingRight: '0.5rem', maxHeight: '250px' }}>
+                        {todaysFacultyAttendance.length === 0 ? (
+                            <div style={{ color: '#64748b', textAlign: 'center', margin: 'auto' }}>No faculty logs evaluated today.</div>
+                        ) : (
+                            todaysFacultyAttendance.sort((a, b) => b.completedClasses - a.completedClasses).map((facLog, idx) => (
+                                <div key={idx} style={{
+                                    background: 'rgba(255,255,255,0.03)',
+                                    border: '1px solid rgba(255,255,255,0.05)',
+                                    borderRadius: '0.75rem',
+                                    padding: '1rem',
+                                    display: 'flex',
+                                    justifyContent: 'space-between',
+                                    alignItems: 'center'
+                                }}>
+                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                        <strong style={{ color: '#e2e8f0' }}>{facLog.facultyName}</strong>
+                                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{facLog.completedClasses} / {facLog.targetClasses} Classes Done</span>
+                                    </div>
+                                    <span style={{
+                                        background: facLog.status === 'Present' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                        color: facLog.status === 'Present' ? '#10b981' : '#ef4444',
+                                        padding: '4px 10px',
+                                        borderRadius: '8px',
+                                        fontSize: '0.8rem',
+                                        fontWeight: 700,
+                                        letterSpacing: '0.05em',
+                                        textTransform: 'uppercase'
+                                    }}>
+                                        {facLog.status}
+                                    </span>
+                                </div>
+                            ))
+                        )}
+                    </div>
+                </div>
+
             </motion.div>
 
             {/* KPI Grid */}

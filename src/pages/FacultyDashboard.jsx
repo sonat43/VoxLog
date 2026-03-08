@@ -4,14 +4,12 @@ import { getTimetable } from '../services/timetableService';
 import AttendanceModal from '../components/dashboard/AttendanceModal';
 import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getMySubjects, getDashboardStats, getTodayAttendanceSessions } from '../services/facultyService';
+import { getMySubjects, getDashboardStats, getTodayAttendanceSessions, getFacultyClassAttendanceAverages, getStudentBirthdaysToday } from '../services/facultyService';
 import { getSubstitutionsForFaculty } from '../services/substitutionService';
 import { useAuth } from '../context/AuthContext';
 import { Bell } from 'lucide-react';
 import { db } from '../services/firebase';
-import { collection, query, where, getDocs, orderBy, limit } from 'firebase/firestore';
-
-
+import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 const FacultyDashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
@@ -28,11 +26,14 @@ const FacultyDashboard = () => {
     const [todaySessions, setTodaySessions] = useState([]);
     const [timetables, setTimetables] = useState({});
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
+    const [classAverages, setClassAverages] = useState([]);
+    const [birthdays, setBirthdays] = useState([]);
 
     // Initialize with current day index mapped to name
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const [selectedDay, setSelectedDay] = useState(days[new Date().getDay()] === 'Sunday' ? 'Monday' : days[new Date().getDay()]);
     const [notifications, setNotifications] = useState([]);
+    const [dailyAttendanceStatus, setDailyAttendanceStatus] = useState(null);
 
     useEffect(() => {
         const fetchDashboardData = async () => {
@@ -62,6 +63,18 @@ const FacultyDashboard = () => {
                 } catch (error) {
                     console.error("Dashboard data error (Stats):", error);
                     // Don't break the whole dashboard if stats fail
+                }
+
+                // 3. Fetch New Widgets Data
+                try {
+                    const [avgs, bdays] = await Promise.all([
+                        getFacultyClassAttendanceAverages(user.uid),
+                        getStudentBirthdaysToday(user.uid)
+                    ]);
+                    setClassAverages(avgs);
+                    setBirthdays(bdays);
+                } catch (error) {
+                    console.error("Dashboard data error (New Widgets):", error);
                 } finally {
                     setLoading(false);
                 }
@@ -179,8 +192,31 @@ const FacultyDashboard = () => {
             }
         };
 
+        const fetchDailyAttendance = async () => {
+            if (!user?.uid) return;
+            try {
+                const todayDate = new Date();
+                const year = todayDate.getFullYear();
+                const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+                const day = String(todayDate.getDate()).padStart(2, '0');
+                const dateString = `${year}-${month}-${day}`;
+                const recordId = `${user.uid}_${dateString}`;
+
+                const recRef = doc(db, "faculty_attendance", recordId);
+                const recSnap = await getDoc(recRef);
+                if (recSnap.exists()) {
+                    setDailyAttendanceStatus(recSnap.data());
+                } else {
+                    setDailyAttendanceStatus(null);
+                }
+            } catch (e) {
+                console.error("Error fetching daily attendance status:", e);
+            }
+        };
+
         fetchData();
         fetchNotifications();
+        fetchDailyAttendance();
     }, [subjects, timetables, user, showAttendanceModal]);
 
     const stats = [
@@ -246,7 +282,12 @@ const FacultyDashboard = () => {
                         border: '1px solid var(--color-border)',
                         position: 'relative',
                         overflow: 'hidden',
-                        boxShadow: 'var(--shadow-md)'
+                        boxShadow: 'var(--shadow-md)',
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                        flexWrap: 'wrap',
+                        gap: '1rem'
                     }}
                 >
                     <div style={{ position: 'relative', zIndex: 1 }}>
@@ -260,6 +301,46 @@ const FacultyDashboard = () => {
                         <p style={{ margin: 0, color: 'var(--color-text-muted)', maxWidth: '600px', fontSize: '1rem', lineHeight: '1.6' }}>
                             Academic Dashboard & Control Center
                         </p>
+                    </div>
+
+                    {/* Daily Faculty Attendance Status Badge */}
+                    <div style={{
+                        background: 'rgba(255, 255, 255, 0.03)',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        padding: '1rem 1.5rem',
+                        borderRadius: '1rem',
+                        textAlign: 'center',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        minWidth: '200px'
+                    }}>
+                        <span style={{ color: 'var(--color-text-muted)', fontSize: '0.85rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Today's Status
+                        </span>
+                        {dailyAttendanceStatus ? (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                {dailyAttendanceStatus.status === 'Present' ? (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#10b981', background: 'rgba(16, 185, 129, 0.15)', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 700 }}>
+                                        <CheckCircle size={18} /> PRESENT
+                                    </div>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#ef4444', background: 'rgba(239, 68, 68, 0.15)', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 700 }}>
+                                        <AlertTriangle size={18} /> ABSENT
+                                    </div>
+                                )}
+                            </div>
+                        ) : (
+                            <div style={{ color: '#f59e0b', background: 'rgba(245, 158, 11, 0.15)', padding: '0.5rem 1rem', borderRadius: '2rem', fontWeight: 700, fontSize: '0.9rem' }}>
+                                PENDING
+                            </div>
+                        )}
+                        {dailyAttendanceStatus && (
+                            <span style={{ fontSize: '0.8rem', color: 'var(--color-text-muted)' }}>
+                                {dailyAttendanceStatus.completedClasses} / {dailyAttendanceStatus.targetClasses} Classes Completed
+                            </span>
+                        )}
                     </div>
                 </motion.div>
 
@@ -675,6 +756,69 @@ const FacultyDashboard = () => {
                                     </div>
                                 </motion.div>
                             ))}
+                        </div>
+                    </section>
+
+                    {/* New Widgets Section */}
+                    <section>
+                        <h2 style={{ fontSize: '1.5rem', fontWeight: 700, marginBottom: '1.5rem', color: 'var(--color-text-main)', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                            <BookOpen size={24} className="text-gray-400" /> Class Attendance & Birthdays
+                        </h2>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(350px, 1fr))', gap: '1.5rem' }}>
+                            {/* Class Averages Widget */}
+                            <div style={{
+                                background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                                borderRadius: '1rem', padding: '1.5rem', boxShadow: 'var(--shadow-sm)'
+                            }}>
+                                <h3 style={{ margin: '0 0 1rem 0', color: 'var(--color-text-main)', fontSize: '1.2rem', fontWeight: 600 }}>Class Attendance Averages</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    {classAverages.length === 0 ? (
+                                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem' }}>No classes found.</div>
+                                    ) : (
+                                        classAverages.map((avg, i) => (
+                                            <div key={i}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
+                                                    <span style={{ color: 'var(--color-text-main)', fontSize: '0.9rem', fontWeight: 500 }}>{avg.subjectName}</span>
+                                                    <span style={{ color: avg.percentage < 75 ? '#ef4444' : '#10b981', fontSize: '0.9rem', fontWeight: 600 }}>{avg.percentage}%</span>
+                                                </div>
+                                                <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
+                                                    <div style={{ width: `${avg.percentage}%`, height: '100%', background: avg.percentage < 75 ? '#ef4444' : '#10b981', borderRadius: '4px', transition: 'width 1s ease-in-out' }} />
+                                                </div>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
+
+                            {/* Birthdays Widget */}
+                            <div style={{
+                                background: 'var(--color-surface)', border: '1px solid var(--color-border)',
+                                borderRadius: '1rem', padding: '1.5rem',
+                                display: 'flex', flexDirection: 'column'
+                            }}>
+                                <h3 style={{ margin: '0 0 1rem 0', color: 'var(--color-text-main)', fontSize: '1.2rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    🎂 Student Birthdays Today
+                                </h3>
+                                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                    {birthdays.length === 0 ? (
+                                        <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', textAlign: 'center', margin: 'auto' }}>
+                                            No birthdays in your classes today.
+                                        </div>
+                                    ) : (
+                                        birthdays.map((bday, i) => (
+                                            <div key={i} style={{
+                                                background: 'rgba(255, 255, 255, 0.05)', padding: '0.75rem', borderRadius: '0.5rem',
+                                                display: 'flex', justifyContent: 'space-between', alignItems: 'center'
+                                            }}>
+                                                <span style={{ color: 'var(--color-text-main)', fontWeight: 600 }}>{bday.name}</span>
+                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', fontWeight: 500, background: 'rgba(255, 255, 255, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>
+                                                    {bday.semesterName}
+                                                </span>
+                                            </div>
+                                        ))
+                                    )}
+                                </div>
+                            </div>
                         </div>
                     </section>
 

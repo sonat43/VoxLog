@@ -36,19 +36,19 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
         // We'll fetch ALL for the prototype to avoid complex compound queries, 
         // then filter in memory. (Not production ready for 10k records, fine for 100)
 
-        const [attendanceSnap, leaveSnap, subSnap] = await Promise.all([
-            getDocs(query(collection(db, "attendance_history"))),
+        const [facultyAttendanceSnap, leaveSnap, subSnap] = await Promise.all([
+            getDocs(query(collection(db, "faculty_attendance"))),
             getDocs(query(collection(db, "leave_requests"), where("status", "==", "Approved"))),
             getDocs(query(collection(db, "substitutions")))
         ]);
 
-        const attendanceRecords = attendanceSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+        const facultyAttRecords = facultyAttendanceSnap.docs.map(d => ({ ...d.data(), id: d.id }));
         const leaveRecords = leaveSnap.docs.map(d => ({ ...d.data(), id: d.id }));
         const subRecords = subSnap.docs.map(d => ({ ...d.data(), id: d.id }));
 
         // 3. Build Daily Status Grid
         // Map: FacultyID -> Date -> Status
-        const report = {}; // { facultyId: { '2023-10-27': { status: 'Present', details: [...] } } }
+        const report = {};
 
         // Initialize
         facultyList.forEach(f => {
@@ -69,7 +69,7 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
                 let color = 'Red';
                 let details = [];
 
-                // Check Leave
+                // Check Leave First
                 const leave = leaveRecords.find(l => {
                     return l.facultyId === fid &&
                         dateStr >= l.fromDate &&
@@ -81,59 +81,40 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
                     color = 'Yellow';
                     details.push(`Leave: ${leave.type}`);
 
-                    // Check Substitution (If on leave, was it covered?)
-                    // Substitutions are by Date + OriginalFaculty
-                    // Note: 'substitutions' collection stores 'originalFacultyId' (if we added it?)
-                    // In 'createSubstitution' we passed 'originalFacultyId: null' earlier! 
-                    // FIX: We need to fix substitution creation to store originalFacultyId correctly if possible.
-                    // But 'substitutions' definitely has 'date' and 'substituteFacultyId'. 
-                    // It assumes we know the class's original teacher.
-                    // For now, check if this faculty is the *Substitute*? No, we want to know if *their* class was subbed.
-                    // If we can't link substitution to original faculty easily (without looking up timetable), 
-                    // we'll stick to "On-Leave".
-                    // However, if *this faculty* is ACTING as a substitute today:
                     const actingAsSub = subRecords.find(s => s.substituteFacultyId === fid && s.date === dateStr);
                     if (actingAsSub) {
                         status = 'Present (Sub)';
-                        color = 'Green'; // They are technically present teaching someone else's class
+                        color = 'Green';
                         details.push(`Subbing for Class ${actingAsSub.classId}`);
                     }
-                }
+                } else {
+                    // Check Faculty Attendance explicitly
+                    const dailyLog = facultyAttRecords.find(a => a.facultyId === fid && a.dateString === dateStr);
 
-                // Check Attendance
-                // Filter records for this faculty on this date
-                const todaysAttendance = attendanceRecords.filter(a => {
-                    if (a.facultyId !== fid) return false;
-                    // Timestamp check
-                    const aDate = a.timestamp?.toDate ? a.timestamp.toDate().toISOString().split('T')[0] : '';
-                    return aDate === dateStr;
-                });
-
-                if (todaysAttendance.length > 0) {
-                    status = 'Present';
-                    color = 'Green';
-                    details.push(`Classes: ${todaysAttendance.length}`);
-
-                    // Check if they were a substitute in any record
-                    if (todaysAttendance.some(a => a.role === 'Substitute')) {
-                        details.push('(Has Substitute Duties)');
-                    }
-                } else if (status === 'Absent') {
-                    // Check if it's a weekend or no-class day?
-                    // For now, leave as Absent or 'No Class' if we had timetable data here.
-                    // Hard to distinguish Absent vs Free Period without full timetable processing.
-                    const dayOfWeek = d.getDay();
-                    if (dayOfWeek === 0 || dayOfWeek === 6) {
-                        status = 'Weekend';
-                        color = 'Gray';
+                    if (dailyLog) {
+                        if (dailyLog.status === 'Present') {
+                            status = 'Present';
+                            color = 'Green';
+                            details.push(`Classes: ${dailyLog.completedClasses} / ${dailyLog.targetClasses}`);
+                        } else if (dailyLog.status === 'Absent') {
+                            status = 'Absent';
+                            color = 'Red';
+                            details.push(`Classes: ${dailyLog.completedClasses} / ${dailyLog.targetClasses}`);
+                        }
+                    } else {
+                        // If no log exists for the day, check if it's a weekend
+                        const dayOfWeek = d.getDay();
+                        if (dayOfWeek === 0 || dayOfWeek === 6) {
+                            status = 'Weekend';
+                            color = 'Gray';
+                            details.push('Weekend');
+                        } else {
+                            status = 'No Data';
+                            color = 'Gray';
+                            details.push('Pending Evaluation');
+                        }
                     }
                 }
-
-                // If Leave + Substituted (Someone else took their class)
-                // We need to know if coverage was arranged.
-                // Assuming 'Blue' means "On Leave but Substituted".
-                // We'll mark as 'Substituted' if Leave exists AND we find a sub record for their usual subject?
-                // Too complex for this iteration without 'originalFacultyId' in substitutions.
 
                 report[fid].days[dateStr] = {
                     status,

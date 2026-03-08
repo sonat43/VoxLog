@@ -187,7 +187,7 @@ export const createSubstitution = async (data) => {
                                 <p style="font-size: 16px; margin-top: 0;">Dear <strong>${userData.displayName || 'Faculty Member'}</strong>,</p>
                                 
                                 <p style="font-size: 16px; line-height: 1.6;">
-                                    You have been assigned as a substitute teacher for the following class due to a faculty leave. 
+                                    You have one added class today on this class ${data.subjectName} due to a faculty leave. 
                                     Please ensure you are present at the scheduled time.
                                 </p>
                                 
@@ -280,6 +280,20 @@ export const getSubstitutionsForClass = async (classId, dateString) => {
         return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
         console.error("Error fetching class substitutions:", error);
+        return [];
+    }
+};
+
+export const getAllTodaysSubstitutions = async (dateString) => {
+    try {
+        const q = query(
+            collection(db, "substitutions"),
+            where("date", "==", dateString)
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching all today's substitutions:", error);
         return [];
     }
 };

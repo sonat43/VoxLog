@@ -9,7 +9,8 @@ import {
     where,
     serverTimestamp,
     orderBy,
-    deleteDoc
+    deleteDoc,
+    getDoc
 } from 'firebase/firestore';
 
 // ===========================
@@ -89,6 +90,56 @@ export const updateLeaveStatus = async (requestId, status, remarks = "") => {
             remarks, // Optional admin remarks
             updatedAt: serverTimestamp()
         });
+
+        // Fetch leave request to get details
+        const leaveDoc = await getDoc(leaveRef);
+        if (leaveDoc.exists()) {
+            const leaveData = leaveDoc.data();
+
+            // Fetch user to get email
+            const userDoc = await getDoc(doc(db, "users", leaveData.facultyId));
+            if (userDoc.exists()) {
+                const userData = userDoc.data();
+                if (userData.email) {
+                    const statusColor = status === 'Approved' ? '#10b981' : '#ef4444'; // Green or Red
+                    const htmlEmail = `
+                        <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
+                            <div style="background-color: #0f172a; padding: 20px; text-align: center;">
+                                <h2 style="color: #ffffff; margin: 0; font-size: 24px;">Leave Request Update</h2>
+                                <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Academic Management System</p>
+                            </div>
+                            <div style="padding: 30px; color: #334155;">
+                                <p style="font-size: 16px; margin-top: 0;">Dear <strong>${userData.displayName || 'Faculty Member'}</strong>,</p>
+                                <p style="font-size: 16px; line-height: 1.6;">
+                                    Your leave request from <strong>${leaveData.fromDate}</strong> to <strong>${leaveData.toDate}</strong> for <em>${leaveData.reason}</em> has been <strong style="color: ${statusColor};">${status}</strong>.
+                                </p>
+                                ${remarks ? `<p style="font-size: 14px; background-color: #f8fafc; padding: 10px; border-left: 4px solid #3b82f6; margin-top: 20px;"><strong>Remarks:</strong> ${remarks}</p>` : ''}
+                                <div style="text-align: center; margin-top: 30px;">
+                                    <a href="#" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block;">View Dashboard</a>
+                                </div>
+                            </div>
+                            <div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+                                <p style="margin: 0;">This is an automated notification. Please do not reply.</p>
+                            </div>
+                        </div>
+                    `;
+
+                    try {
+                        // Dynamically import to avoid circular dependency issues if any
+                        const { sendEmailNotification } = await import('./emailService');
+                        await sendEmailNotification(
+                            userData.email,
+                            `Leave Request ${status}`,
+                            htmlEmail
+                        );
+                        console.log(`[Notification] Leave ${status} email sent to ${userData.email}`);
+                    } catch (mailError) {
+                        console.error("Failed to send leave status email:", mailError);
+                    }
+                }
+            }
+        }
+
         return { success: true };
     } catch (error) {
         console.error("Error updating leave status:", error);

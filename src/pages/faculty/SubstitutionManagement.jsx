@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, User, CheckCircle, AlertCircle, X, Search, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -21,6 +21,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
     const [toast, setToast] = useState(null);
+    const isProcessingRef = useRef(false);
 
     // Manual Mode State
     const [showManualModal, setShowManualModal] = useState(false);
@@ -125,6 +126,8 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
 
     const handleConfirm = async () => {
         if (!selectedImpactedClass || !selectedSubstitute) return;
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
 
         setLoading(true);
         try {
@@ -153,6 +156,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
             setToast({ type: 'error', message: 'Failed to create substitution.' });
         } finally {
             setLoading(false);
+            isProcessingRef.current = false;
         }
     };
 

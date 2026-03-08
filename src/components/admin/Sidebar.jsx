@@ -41,6 +41,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         // Operations
         // Operations
         { path: '/admin-dashboard/attendance-records', icon: FileText, label: 'Student Attendance' },
+        { path: '/admin-dashboard/faculty-attendance', icon: UserCheck, label: 'Faculty Attendance' },
         { path: '/admin-dashboard/leaves', icon: layers_sub_icon, label: 'Leave Approvals' },
         { path: '/admin-dashboard/substitutions', icon: UserCheck, label: 'Substitutions' },
         { path: '/admin-dashboard/master-calendar', icon: Calendar, label: 'Master Calendar' },

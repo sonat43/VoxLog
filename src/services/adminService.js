@@ -187,5 +187,140 @@ export const clearAttendanceData = async () => {
     return { success: true };
 };
 
+/**
+ * Fetches attendance data for the last 7 days to show in the Admin Dashboard.
+ */
+export const getWeeklyAttendanceAnalytics = async () => {
+    try {
+        const dates = [];
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date();
+            d.setDate(d.getDate() - i);
+            dates.push(d.toISOString().split('T')[0]);
+        }
+
+        const analytics = await Promise.all(dates.map(async (date) => {
+            const q = query(collection(db, "attendance_records"), where("dateString", "==", date));
+            const snap = await getDocs(q);
+            let present = 0;
+            const total = snap.size;
+            snap.forEach(doc => {
+                if (doc.data().status === 'Present') present++;
+            });
+            return {
+                date,
+                displayDate: new Date(date).toLocaleDateString('en-US', { weekday: 'short' }),
+                percentage: total > 0 ? Math.round((present / total) * 100) : 0,
+                present,
+                total
+            };
+        }));
+        return analytics;
+    } catch (error) {
+        console.error("Error fetching weekly analytics:", error);
+        return [];
+    }
+};
+
+/**
+ * Fetches today's faculty attendance records.
+ */
+export const getTodayFacultyAttendance = async () => {
+    try {
+        const todayDate = new Date();
+        const year = todayDate.getFullYear();
+        const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+        const day = String(todayDate.getDate()).padStart(2, '0');
+        const dateString = `${year}-${month}-${day}`;
+
+        const q = query(collection(db, "faculty_attendance"), where("dateString", "==", dateString));
+        const snap = await getDocs(q);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching today's faculty attendance:", error);
+        return [];
+    }
+};
+
+/**
+ * Manually updates or overrides a faculty member's daily attendance status.
+ * @param {string} facultyId 
+ * @param {string} dateString (YYYY-MM-DD)
+ * @param {string} status ('Present', 'Absent', 'On-Leave')
+ */
+export const updateFacultyDailyAttendance = async (facultyId, dateString, status) => {
+    try {
+        const recordId = `${facultyId}_${dateString}`;
+        const recordRef = doc(db, "faculty_attendance", recordId);
+
+        await setDoc(recordRef, {
+            facultyId: facultyId,
+            dateString: dateString,
+            status: status,
+            targetClasses: 0, // Manual override doesn't strictly track classes completed
+            completedClasses: 0,
+            isManualOverride: true, // Flag it so we know it wasn't auto-evaluated
+            lastUpdatedAt: serverTimestamp()
+        }, { merge: true });
+
+        console.log(`[Admin] Override successful: Faculty ${facultyId} marked ${status} for ${dateString}`);
+        return true;
+    } catch (error) {
+        console.error("Error manually updating faculty attendance:", error);
+        throw error;
+    }
+};
+/**
+ * Seeds historical faculty attendance data for the past 30 days.
+ */
+export const seedFacultyAttendance = async () => {
+    try {
+        console.log("Seeding Faculty Attendance...");
+        const users = await fetchAllUsers();
+        const facultyList = users.filter(u => u.role === 'faculty' || u.role === 'class_teacher');
+
+        const today = new Date();
+        const startDate = new Date();
+        startDate.setDate(today.getDate() - 30); // Last 30 days
+
+        let recordCount = 0;
+
+        for (let d = new Date(startDate); d <= today; d.setDate(d.getDate() + 1)) {
+            const dayOfWeek = d.getDay();
+            if (dayOfWeek === 0 || dayOfWeek === 6) continue; // Skip weekends
+
+            const dateString = d.toISOString().split('T')[0];
+
+            for (const fac of facultyList) {
+                // 90% chance of being Present
+                const isPresent = Math.random() < 0.9;
+                // Randomly assign 2 to 4 classes target for the day
+                const targetClasses = Math.floor(Math.random() * 3) + 2;
+                const completedClasses = isPresent ? targetClasses : Math.floor(Math.random() * targetClasses);
+
+                const status = completedClasses >= targetClasses ? 'Present' : 'Absent';
+
+                const recordId = `${fac.id}_${dateString}`;
+                const recordRef = doc(db, "faculty_attendance", recordId);
+
+                await setDoc(recordRef, {
+                    facultyId: fac.id,
+                    dateString: dateString,
+                    status: status,
+                    targetClasses: targetClasses,
+                    completedClasses: completedClasses,
+                    lastUpdatedAt: serverTimestamp()
+                }, { merge: true });
+
+                recordCount++;
+            }
+        }
+
+        return { success: true, count: recordCount };
+    } catch (error) {
+        console.error("Error seeding faculty attendance:", error);
+        throw error;
+    }
+};
 
 

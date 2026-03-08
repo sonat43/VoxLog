@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { Check, X, Calendar, User, Clock, Filter, UserCheck, AlertCircle } from 'lucide-react';
 import { useAuth } from '../../../context/AuthContext';
@@ -16,6 +16,7 @@ const LeaveApprovals = () => {
     const [selectedRequest, setSelectedRequest] = useState(null);
     const [isSubModalOpen, setIsSubModalOpen] = useState(false);
     const [pendingAdminSubs, setPendingAdminSubs] = useState([]); // Tasks assigned to Admin
+    const isProcessingRef = useRef(false);
 
     useEffect(() => {
         fetchRequests();
@@ -38,6 +39,8 @@ const LeaveApprovals = () => {
     };
 
     const handleStatusUpdate = async (id, status) => {
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
         try {
             await updateLeaveStatus(id, status, user.uid);
 
@@ -47,6 +50,8 @@ const LeaveApprovals = () => {
         } catch (error) {
             console.error(error);
             setToast({ message: "Failed to update status", type: "error" });
+        } finally {
+            isProcessingRef.current = false;
         }
     };
 

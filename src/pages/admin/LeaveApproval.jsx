@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { CheckCircle, XCircle, Clock, FileText, User, Calendar } from 'lucide-react';
 import { getLeaveRequests, updateLeaveStatus } from '../../services/leaveService';
@@ -9,6 +9,8 @@ const LeaveApproval = () => {
     const [loading, setLoading] = useState(true);
     const [filter, setFilter] = useState('Pending'); // Pending, Approved, Rejected, All
     const [toast, setToast] = useState(null);
+
+    const isProcessingRef = useRef(false);
 
     useEffect(() => {
         fetchRequests();
@@ -29,6 +31,8 @@ const LeaveApproval = () => {
     };
 
     const handleAction = async (requestId, newStatus) => {
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
         try {
             await updateLeaveStatus(requestId, newStatus);
             setToast({
@@ -40,6 +44,8 @@ const LeaveApproval = () => {
         } catch (error) {
             console.error(error);
             setToast({ type: 'error', message: `Failed to ${newStatus.toLowerCase()} request.` });
+        } finally {
+            isProcessingRef.current = false;
         }
     };
 

@@ -115,9 +115,8 @@ const DashboardLayout = ({ children }) => {
         { icon: BookOpen, label: 'My Courses', path: '/faculty/courses' },
         { icon: Users, label: 'My Class', path: '/faculty/my-class' },
         { icon: ClipboardCheck, label: 'Leave Management', path: '/faculty/leave-management' },
+        { icon: History, label: 'My Attendance', path: '/faculty/my-attendance' },
         { icon: Users, label: 'Substitutions', path: '/faculty/substitutions' },
-
-        { icon: History, label: 'History', path: '/faculty/history' },
 
         { icon: User, label: 'Profile', path: '/faculty/profile' },
     ];

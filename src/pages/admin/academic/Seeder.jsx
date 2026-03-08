@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { provisionUser } from '../../../services/adminService';
+import { provisionUser, seedFacultyAttendance } from '../../../services/adminService';
 import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments, getCourses, getSemesters, getStudentsBySemester, recordAttendance, addStudent, getSubjects } from '../../../services/academicService';
 import { getTimetable, saveTimetable, generateTimetable } from '../../../services/timetableService';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
@@ -225,23 +225,55 @@ const Seeder = () => {
         }
     };
 
+    const runFacultyAttendanceSeeder = async () => {
+        setStatus('running');
+        setLogs([]);
+        addLog("Starting Faculty Attendance Seeding (Past 30 Days)...");
+
+        try {
+            const result = await seedFacultyAttendance();
+            addLog(`✅ Successfully generated ${result.count} faculty attendance records.`);
+            setStatus('success');
+            addLog("🎉 Faculty Attendance Seeding Completed!");
+        } catch (error) {
+            console.error(error);
+            addLog(`❌ Error: ${error.message}`);
+            setStatus('error');
+        }
+    };
+
     return (
         <div style={{ padding: '2rem', color: 'white', maxWidth: '800px' }}>
             <h1>System Seeder</h1>
-            <p className="text-gray-400 mb-8">Establish initial data structure (Departments, Courses, Faculty).</p>
+            <p className="text-gray-400 mb-8">Establish initial data structure (Departments, Courses, Faculty) and mock historical data.</p>
 
-            <button
-                onClick={runSeeder}
-                disabled={status === 'running'}
-                style={{
-                    padding: '1rem 2rem', background: '#14b8a6', color: 'white', border: 'none',
-                    borderRadius: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold', cursor: status === 'running' ? 'wait' : 'pointer',
-                    display: 'flex', alignItems: 'center', gap: '1rem'
-                }}
-            >
-                {status === 'running' && <Loader2 className="animate-spin" />}
-                {status === 'running' ? 'Seeding...' : 'Run Seed Script'}
-            </button>
+            <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                <button
+                    onClick={runSeeder}
+                    disabled={status === 'running'}
+                    style={{
+                        padding: '1rem 2rem', background: '#14b8a6', color: 'white', border: 'none',
+                        borderRadius: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold', cursor: status === 'running' ? 'wait' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '1rem'
+                    }}
+                >
+                    {status === 'running' && <Loader2 className="animate-spin" />}
+                    {status === 'running' ? 'Seeding...' : 'Run Main Seed Script'}
+                </button>
+
+                <button
+                    onClick={runFacultyAttendanceSeeder}
+                    disabled={status === 'running'}
+                    style={{
+                        padding: '1rem 2rem', background: '#8b5cf6', color: 'white', border: 'none',
+                        borderRadius: '0.5rem', fontSize: '1.2rem', fontWeight: 'bold', cursor: status === 'running' ? 'wait' : 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '1rem'
+                    }}
+                >
+                    {status === 'running' && <Loader2 className="animate-spin" />}
+                    {status === 'running' ? 'Seeding...' : 'Seed Faculty Attendance (30 Days)'}
+                </button>
+            </div>
 
             <div style={{ marginTop: '2rem', background: '#111827', padding: '1rem', borderRadius: '0.5rem', fontFamily: 'monospace', height: '400px', overflowY: 'auto', border: '1px solid #374151' }}>
                 {logs.length === 0 && <span style={{ color: '#6b7280' }}>Logs will appear here...</span>}

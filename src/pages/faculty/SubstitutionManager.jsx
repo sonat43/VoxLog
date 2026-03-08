@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { UserCheck, Clock, Calendar, AlertCircle, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
@@ -19,6 +19,7 @@ const SubstitutionManager = () => {
     const [selectedFacultyId, setSelectedFacultyId] = useState('');
     const [loadingFaculty, setLoadingFaculty] = useState(false);
     const [toast, setToast] = useState(null);
+    const isProcessingRef = useRef(false);
 
     useEffect(() => {
         fetchPending();
@@ -123,6 +124,8 @@ const SubstitutionManager = () => {
 
     const handleAllocate = async () => {
         if (!selectedFacultyId) return setToast({ message: "Please select a faculty member", type: "error" });
+        if (isProcessingRef.current) return;
+        isProcessingRef.current = true;
 
         try {
             await allocateSubstitute(selectedRequest.id, {
@@ -139,6 +142,8 @@ const SubstitutionManager = () => {
             fetchPending(); // Refresh list
         } catch (e) {
             setToast({ message: "Failed to allocate substitute", type: "error" });
+        } finally {
+            isProcessingRef.current = false;
         }
     };
 

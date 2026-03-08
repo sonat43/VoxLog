@@ -62,7 +62,7 @@ const MasterAttendanceCalendar = () => {
             case 'Yellow': return { bg: 'rgba(234, 179, 8, 0.2)', border: '1px solid #eab308', text: 'L' };
             case 'Red': return { bg: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', text: 'A' };
             case 'Blue': return { bg: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', text: 'S' };
-            case 'Gray': return { bg: '#334155', border: 'none', text: '-' };
+            case 'Gray': return { bg: '#334155', border: 'none', text: cell.status === 'Weekend' ? '-' : '?' };
             default: return { bg: '#1e293b', border: 'none', text: '?' };
         }
     };
@@ -108,6 +108,10 @@ const MasterAttendanceCalendar = () => {
                     <div style={{ width: '16px', height: '16px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', borderRadius: '4px' }}></div>
                     <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Substituted</span>
                 </div> */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
+                    <div style={{ width: '16px', height: '16px', background: '#334155', borderRadius: '4px' }}></div>
+                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Pending / Weekend</span>
+                </div>
             </div>
 
             {/* Calendar Grid */}

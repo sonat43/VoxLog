@@ -27,7 +27,7 @@ const Students = () => {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
     const [toast, setToast] = useState(null);
-    const [formData, setFormData] = useState({ name: '', regNo: '', email: '', parentEmail: '' });
+    const [formData, setFormData] = useState({ name: '', regNo: '', email: '', parentEmail: '', dob: '' });
     const [errors, setErrors] = useState({});
     const [bulkData, setBulkData] = useState('');
     const [bulkLogs, setBulkLogs] = useState([]);
@@ -62,7 +62,7 @@ const Students = () => {
     const validateForm = () => {
         const newErrors = {};
         let isValid = true;
-        const fields = ['name', 'regNo', 'email', 'parentEmail'];
+        const fields = ['name', 'regNo', 'email', 'parentEmail', 'dob'];
 
         fields.forEach(field => {
             const error = validateField(field, formData[field]);
@@ -201,7 +201,7 @@ const Students = () => {
 
             setIsModalOpen(false);
             setEditingId(null);
-            setFormData({ name: '', regNo: '', email: '', parentEmail: '' });
+            setFormData({ name: '', regNo: '', email: '', parentEmail: '', dob: '' });
             // Refresh with current view logic
             fetchStudents(selectedSemester);
         } catch (error) {
@@ -210,7 +210,7 @@ const Students = () => {
     };
 
     const startEdit = (student) => {
-        setFormData({ name: student.name, regNo: student.regNo, email: student.email, parentEmail: student.parentEmail || '' });
+        setFormData({ name: student.name, regNo: student.regNo, email: student.email, parentEmail: student.parentEmail || '', dob: student.dob || student.dateOfBirth || '' });
         setEditingId(student.id);
         setIsModalOpen(true);
     };
@@ -243,19 +243,19 @@ const Students = () => {
             // Handle both comma and tab for Excel copy-paste
             const parts = line.split(/[,\t]+/).map(p => p.trim());
 
-            if (parts.length < 4) {
-                logs.push({ status: 'error', msg: `Invalid Format: ${line} (Need Name, RegNo, Email, ParentEmail)` });
+            if (parts.length < 5) {
+                logs.push({ status: 'error', msg: `Invalid Format: ${line} (Need Name, RegNo, Email, ParentEmail, DOB)` });
                 continue;
             }
 
-            const [name, regNo, email, parentEmail] = parts;
+            const [name, regNo, email, parentEmail, dob] = parts;
             try {
                 // Check local capacity first to fail fast? 
                 // Service checks capacity properly but we are in a loop.
                 // We'll let service handle individual errors.
 
                 await addStudent({
-                    name, regNo, email, parentEmail,
+                    name, regNo, email, parentEmail, dob,
                     semesterId: selectedSemester,
                     courseId: selectedCourse,
                     departmentId: selectedDept
@@ -395,7 +395,7 @@ const Students = () => {
                             setToast({ message: "Class is full! Increase limit in Semester settings if needed.", type: "error" });
                         } else {
                             setEditingId(null);
-                            setFormData({ name: '', regNo: '', email: '', parentEmail: '' });
+                            setFormData({ name: '', regNo: '', email: '', parentEmail: '', dob: '' });
                             setIsModalOpen(true);
                         }
                     } else {
@@ -483,6 +483,15 @@ const Students = () => {
                         />
                         {errors.parentEmail && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.parentEmail}</p>}
                     </div>
+                    <div>
+                        <label style={{ color: '#cbd5e1', fontSize: '0.9rem', marginBottom: '6px', display: 'block' }}>Date of Birth</label>
+                        <input
+                            name="dob"
+                            required type="date" value={formData.dob} onChange={handleInputChange}
+                            style={{ ...inputStyle, border: errors.dob ? '1px solid #ef4444' : inputStyle.border }}
+                        />
+                        {errors.dob && <p style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '4px' }}>{errors.dob}</p>}
+                    </div>
 
                     <button type="submit" style={{ marginTop: '10px', padding: '12px', borderRadius: '8px', background: '#14b8a6', color: 'white', border: 'none', fontWeight: 600, cursor: 'pointer' }}>
                         {editingId ? "Update Student" : "Enroll Student"}
@@ -496,14 +505,14 @@ const Students = () => {
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                     <div style={{ fontSize: '0.9rem', color: '#94a3b8' }}>
                         <p style={{ margin: '0 0 8px 0' }}>Paste student details below. One student per line.</p>
-                        <code style={{ background: '#0f172a', padding: '4px 8px', borderRadius: '4px', display: 'block', marginBottom: '8px' }}>Name, RegisterNo, Email, ParentEmail</code>
+                        <code style={{ background: '#0f172a', padding: '4px 8px', borderRadius: '4px', display: 'block', marginBottom: '8px' }}>Name, RegisterNo, Email, ParentEmail, DOB (YYYY-MM-DD)</code>
                         <p style={{ margin: 0, fontSize: '0.8rem' }}>Works with Excel/Sheets copy-paste.</p>
                     </div>
 
                     <textarea
                         value={bulkData}
                         onChange={(e) => setBulkData(e.target.value)}
-                        placeholder={`John Doe, REG001, john@test.com, parent1@test.com\nJane Smith, REG002, jane@test.com, parent2@test.com`}
+                        placeholder={`John Doe, REG001, john@test.com, parent1@test.com, 2005-04-12\nJane Smith, REG002, jane@test.com, parent2@test.com, 2006-08-25`}
                         rows={10}
                         style={{
                             width: '100%', padding: '12px', borderRadius: '8px',

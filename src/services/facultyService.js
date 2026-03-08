@@ -16,6 +16,7 @@ import {
 } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL, deleteObject } from 'firebase/storage';
 import { sendDailyParentReport } from './emailService';
+import { getFacultyScheduleForDate } from './timetableService';
 
 const getBackendUrl = () => {
     // If we're on localhost, assume backend is too. 
@@ -377,10 +378,87 @@ export const saveAttendanceSession = async (sessionData) => {
         }
 
         await batch.commit();
+
+        // Check Daily Attendance Status
+        if (sessionData.facultyId) {
+            try {
+                const todayStr = sessionData.dateString || new Date().toISOString().split('T')[0];
+                await evaluateFacultyDailyAttendance(sessionData.facultyId, todayStr);
+            } catch (evalErr) {
+                console.warn("[WARN] Failed to evaluate daily faculty attendance:", evalErr);
+            }
+        }
+
         return { success: true, sessionId: sessionRef.id };
 
     } catch (error) {
         console.error("Error saving attendance session:", error);
+        throw error;
+    }
+};
+
+/**
+ * Automatically evaluates whether a faculty member has completed all their assigned 
+ * classes for the day. If so, marks them as 'Present', else 'Absent'.
+ */
+export const evaluateFacultyDailyAttendance = async (facultyId, dateString) => {
+    try {
+        console.log(`[DEBUG] Evaluating Daily Attendance for Faculty ${facultyId} on ${dateString}`);
+
+        // 1. Get Scheduled Classes for Today
+        const schedule = await getFacultyScheduleForDate(facultyId, dateString);
+        if (schedule.length === 0) {
+            console.log(`[DEBUG] Faculty ${facultyId} has no scheduled classes today. Skipping.`);
+            return;
+        }
+
+        // 2. Fetch Sessions recorded by this faculty today
+        const qSessions = query(
+            collection(db, "attendance_history"),
+            where("facultyId", "==", facultyId),
+            where("dateString", "==", dateString),
+            where("status", "==", "completed")
+        );
+        const sessionsSnap = await getDocs(qSessions);
+
+        // Count unique subjects handled today
+        const handledSubjectIds = new Set();
+        sessionsSnap.docs.forEach(doc => {
+            handledSubjectIds.add(doc.data().subjectId);
+        });
+
+        // 3. Compare Required vs Handled
+        let targetClasses = 0;
+        let completedClasses = 0;
+
+        schedule.forEach(slot => {
+            targetClasses++;
+            if (handledSubjectIds.has(slot.subjectId)) {
+                completedClasses++;
+            }
+        });
+
+        const status = completedClasses >= targetClasses ? 'Present' : 'Absent';
+        console.log(`[DEBUG] Faculty ${facultyId} completed ${completedClasses}/${targetClasses} classes. Status: ${status}`);
+
+        // 4. Save/Update to 'faculty_attendance' table
+        // We use a specific ID to ensure one record per faculty per day
+        const recordId = `${facultyId}_${dateString}`;
+        const recordRef = doc(db, "faculty_attendance", recordId);
+
+        await setDoc(recordRef, {
+            facultyId: facultyId,
+            dateString: dateString,
+            status: status,
+            targetClasses: targetClasses,
+            completedClasses: completedClasses,
+            lastUpdatedAt: serverTimestamp()
+        }, { merge: true });
+
+        return { status, completedClasses, targetClasses };
+
+    } catch (error) {
+        console.error("Error evaluating faculty daily attendance:", error);
         throw error;
     }
 };
@@ -634,6 +712,88 @@ export const deleteResource = async (resourceId, storageRefPath) => {
     } catch (error) {
         console.error("Error deleting resource:", error);
         throw error;
+    }
+};
+
+// ===========================
+// NEW WIDGET FETCHERS
+// ===========================
+
+export const getFacultyClassAttendanceAverages = async (facultyId) => {
+    try {
+        const subjects = await getMySubjects(facultyId);
+        const averages = await Promise.all(subjects.map(async (subject) => {
+            const q = query(collection(db, "attendance_records"), where("subjectId", "==", subject.id));
+            const snap = await getDocs(q);
+            let present = 0;
+            const total = snap.size;
+            snap.forEach(doc => {
+                if (doc.data().status === 'Present') present++;
+            });
+            return {
+                subjectId: subject.id,
+                subjectName: subject.name,
+                code: subject.code,
+                percentage: total > 0 ? Math.round((present / total) * 100) : 0,
+                totalClassesEvaluated: total
+            };
+        }));
+        return averages;
+    } catch (error) {
+        console.error("Error fetching class attendance averages:", error);
+        return [];
+    }
+};
+
+export const getStudentBirthdaysToday = async (facultyId) => {
+    try {
+        const subjects = await getMySubjects(facultyId);
+        const semesterIds = [...new Set(subjects.map(s => s.semesterId).filter(Boolean))];
+
+        const today = new Date();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const birthdayPattern = `-${mm}-${dd}`; // Matches YYYY-MM-DD
+
+        const birthdays = [];
+
+        for (const semId of semesterIds) {
+            const q = query(collection(db, "students"), where("semesterId", "==", semId));
+            const snap = await getDocs(q);
+
+            snap.forEach(doc => {
+                const data = doc.data();
+                const dob = data.dob || data.dateOfBirth;
+                if (dob && dob.includes(birthdayPattern)) {
+                    if (!birthdays.some(b => b.id === doc.id)) { // Avoid duplicates
+                        birthdays.push({
+                            id: doc.id,
+                            name: data.name,
+                            semesterName: subjects.find(s => s.semesterId === semId)?.semesterName || 'Class'
+                        });
+                    }
+                }
+            });
+        }
+        return birthdays;
+    } catch (error) {
+        console.error("Error fetching birthdays:", error);
+        return [];
+    }
+};
+
+export const getFacultyPersonalAttendanceHistory = async (facultyId) => {
+    try {
+        const q = query(
+            collection(db, "faculty_attendance"),
+            where("facultyId", "==", facultyId),
+            orderBy("dateString", "desc")
+        );
+        const snap = await getDocs(q);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    } catch (error) {
+        console.error("Error fetching personal attendance history:", error);
+        return [];
     }
 };
 

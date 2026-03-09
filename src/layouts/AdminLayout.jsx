@@ -11,9 +11,17 @@ const AdminLayout = () => {
     return (
         <div style={{ minHeight: '100vh', backgroundColor: '#0a0f1e', color: 'white' }}>
             <Sidebar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
-            <TopBar isOpen={isSidebarOpen} />
+            <TopBar isOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
 
-            <main style={{
+            {/* Mobile Overlay */}
+            {isSidebarOpen && (
+                <div
+                    className="mobile-overlay show-on-mobile"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
+            <main className="main-content-wrapper mobile-p-4" style={{
                 padding: '2rem',
                 marginTop: '64px',
                 marginLeft: isSidebarOpen ? '260px' : '70px',

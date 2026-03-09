@@ -49,21 +49,21 @@ export const updateDepartment = async (departmentId, data) => {
 };
 
 export const deleteDepartment = async (departmentId) => {
-    // Check if linked to any courses
-    const q = query(collection(db, "courses"), where("departmentId", "==", departmentId));
+    // Check if linked to any programs
+    const q = query(collection(db, "programs"), where("departmentId", "==", departmentId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Cannot delete department. It is linked to existing courses.");
+        throw new Error("Cannot delete department. It is linked to existing programs.");
     }
 
     await deleteDoc(doc(db, "departments", departmentId));
 };
 
 // ===========================
-// COURSES
+// PROGRAMS (DB: courses)
 // ===========================
 
-export const addCourse = async (name, departmentId, duration) => {
+export const addProgram = async (name, departmentId, duration) => {
     await addDoc(collection(db, "courses"), {
         name,
         departmentId,
@@ -71,50 +71,51 @@ export const addCourse = async (name, departmentId, duration) => {
     });
 };
 
-export const updateCourse = async (courseId, data) => {
+export const updateProgram = async (programId, data) => {
     if (data.duration) data.duration = Number(data.duration);
-    const courseRef = doc(db, "courses", courseId);
-    await updateDoc(courseRef, data);
+    const programRef = doc(db, "courses", programId);
+    await updateDoc(programRef, data);
 };
 
-export const getCourses = async () => {
+export const getPrograms = async () => {
     const querySnapshot = await getDocs(collection(db, "courses"));
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
-export const deleteCourse = async (courseId) => {
+export const deleteProgram = async (programId) => {
     // Check if linked to any semesters
-    const q = query(collection(db, "semesters"), where("courseId", "==", courseId));
+    const q = query(collection(db, "semesters"), where("courseId", "==", programId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Cannot delete course. It is linked to existing semesters.");
+        throw new Error("Cannot delete program. It is linked to existing semesters.");
     }
 
-    await deleteDoc(doc(db, "courses", courseId));
+    await deleteDoc(doc(db, "courses", programId));
 };
 
 // ===========================
 // SEMESTERS
 // ===========================
 
-export const addSemester = async (courseId, semesterNo, studentCount, classTeacherId) => {
+export const addSemester = async (programId, semesterNo, studentCount, classTeacherId) => {
     const semNo = Number(semesterNo);
-    // Check for duplicate semesterNo for the same course
+    // Check for duplicate semesterNo for the same program (DB field: courseId)
     const q = query(
         collection(db, "semesters"),
-        where("courseId", "==", courseId),
+        where("courseId", "==", programId),
         where("semesterNo", "==", semNo)
     );
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Semester " + semNo + " already exists for this course.");
+        throw new Error("Semester " + semNo + " already exists for this program.");
     }
 
     await addDoc(collection(db, "semesters"), {
-        courseId,
+        courseId: programId, // DB expects courseId for the parent degree
         semesterNo: semNo,
         studentCount: Number(studentCount) || 0,
-        classTeacherId: classTeacherId || null
+        classTeacherId: classTeacherId || null,
+        programId: programId // For UI compatibility if specifically reading programId
     });
 };
 
@@ -122,36 +123,47 @@ export const updateSemester = async (semesterId, data) => {
     if (data.semesterNo) data.semesterNo = Number(data.semesterNo);
     if (data.studentCount) data.studentCount = Number(data.studentCount);
 
+    if (data.programId) {
+        data.courseId = data.programId; // DB expects courseId
+    }
+
     const semRef = doc(db, "semesters", semesterId);
     await updateDoc(semRef, data);
 };
 
 export const getSemesters = async () => {
     const querySnapshot = await getDocs(collection(db, "semesters"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            programId: data.programId || data.courseId // Map DB courseId to UI programId 
+        };
+    });
 };
 
 export const deleteSemester = async (semesterId) => {
-    // Check if linked to any subjects
+    // Check if linked to any courses (DB subjects)
     const q = query(collection(db, "subjects"), where("semesterId", "==", semesterId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Cannot delete semester. It is linked to existing subjects.");
+        throw new Error("Cannot delete semester. It is linked to existing courses.");
     }
 
     await deleteDoc(doc(db, "semesters", semesterId));
 };
 
 // ===========================
-// SUBJECTS
+// COURSES (DB: subjects)
 // ===========================
 
-export const addSubject = async (code, name, credits, semesterId, courseId) => {
+export const addCourse = async (code, name, credits, semesterId, programId) => {
     // Check for unique code
     const q = query(collection(db, "subjects"), where("code", "==", code));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Subject code '" + code + "' must be unique.");
+        throw new Error("Course code '" + code + "' must be unique.");
     }
 
     await addDoc(collection(db, "subjects"), {
@@ -159,95 +171,120 @@ export const addSubject = async (code, name, credits, semesterId, courseId) => {
         name,
         credits: Number(credits),
         semesterId,
-        courseId // Storing courseId for easier querying/filtering if needed, though relational to semester
+        courseId: programId, // DB subjects use courseId to point to the parent Degree (Program)
+        programId // For UI compatibility backward support
     });
 };
 
-export const updateSubject = async (subjectId, data) => {
+export const updateCourse = async (courseId, data) => { // "courseId" parameter here is actually a Subject ID for the DB
     if (data.credits) data.credits = Number(data.credits);
-    const subRef = doc(db, "subjects", subjectId);
+
+    if (data.programId) {
+        data.courseId = data.programId; // DB Subject uses courseId for the parent Program mapping
+    }
+
+    const subRef = doc(db, "subjects", courseId);
     await updateDoc(subRef, data);
 };
 
-export const getSubjects = async () => {
+export const getCourses = async () => {
     const querySnapshot = await getDocs(collection(db, "subjects"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            programId: data.programId || data.courseId // Fallback to courseId for legacy records
+        };
+    });
 };
 
-export const deleteSubject = async (subjectId) => {
+export const deleteCourse = async (courseId) => { // "courseId" parameter is a DB Subject ID
     // Check if any faculty are assigned to this subject
-    const q = query(collection(db, "faculty_subjects"), where("subjectId", "==", subjectId));
+    const q = query(collection(db, "faculty_subjects"), where("subjectId", "==", courseId));
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("Cannot delete subject. It has faculty assigned.");
+        throw new Error("Cannot delete course. It has faculty assigned.");
     }
 
-    await deleteDoc(doc(db, "subjects", subjectId));
+    await deleteDoc(doc(db, "subjects", courseId));
 };
 
 // ===========================
-// FACULTY ASSIGNMENTS
+// FACULTY ASSIGNMENTS (DB: faculty_subjects)
 // ===========================
 
-export const assignFacultyToSubject = async (facultyId, subjectId, academicYear) => {
+export const assignFacultyToCourse = async (facultyId, courseId, academicYear) => {
     // Check if subject is already assigned for this academic year (to anyone)
     const q = query(
         collection(db, "faculty_subjects"),
-        where("subjectId", "==", subjectId),
+        where("subjectId", "==", courseId), // DB uses subjectId
         where("academicYear", "==", academicYear)
     );
     const querySnapshot = await getDocs(q);
     if (!querySnapshot.empty) {
-        throw new Error("This subject is already assigned to a faculty member for the academic year " + academicYear);
+        throw new Error("This course is already assigned to a faculty member for the academic year " + academicYear);
     }
 
     await addDoc(collection(db, "faculty_subjects"), {
         facultyId,
-        subjectId,
+        subjectId: courseId, // DB expects subjectId
+        courseId, // UI compatibility
         academicYear
     });
 };
 
 export const getFacultyAssignments = async () => {
     const querySnapshot = await getDocs(collection(db, "faculty_subjects"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            courseId: data.courseId || data.subjectId // Map db subjectId to ui courseId
+        };
+    });
 };
 
 export const getFacultyAssignmentsByFaculty = async (facultyId) => {
     const q = query(collection(db, "faculty_subjects"), where("facultyId", "==", facultyId));
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            courseId: data.courseId || data.subjectId // Map db subjectId to ui courseId
+        };
+    });
 };
 
 export const updateFacultyAssignment = async (assignmentId, data) => {
-    // Check uniqueness if subjectId or academicYear is changing
-    if (data.subjectId || data.academicYear) {
-        // We need existing data if only one is updated to form a complete check, 
-        // but typically the UI sends the full object. We'll assume full object or fetch if critical.
-        // For efficiency, let's assume the UI sends the full set of constraints (subjectId, academicYear) if either changes, 
-        // OR we just query based on what's provided + existing. 
-        // Simplest robust way: query for conflicting assignment.
+    // Check uniqueness if courseId or academicYear is changing
 
-        // Note: Ideally we should fetch the current doc to merge with `data` if `data` is partial,
-        // but our UI sends full `facultyId`, `subjectId`, `academicYear` in handleEdit.
-        // IF `data` is missing keys, this might be risky, but our current usage covers it.
+    // Map data variables correctly to db columns
+    const updateData = { ...data };
+    if (updateData.courseId) {
+        updateData.subjectId = updateData.courseId;
+    }
 
+    if (updateData.courseId || updateData.academicYear) {
         const q = query(
             collection(db, "faculty_subjects"),
-            where("subjectId", "==", data.subjectId),
-            where("academicYear", "==", data.academicYear)
+            where("subjectId", "==", updateData.subjectId || updateData.courseId),
+            where("academicYear", "==", updateData.academicYear)
         );
         const querySnapshot = await getDocs(q);
 
         // Check if any doc found is NOT the one we are updating
         const duplicate = querySnapshot.docs.find(doc => doc.id !== assignmentId);
         if (duplicate) {
-            throw new Error("This subject is already assigned to a faculty member for the academic year " + data.academicYear);
+            throw new Error("This course is already assigned to a faculty member for the academic year " + updateData.academicYear);
         }
     }
 
     const assignRef = doc(db, "faculty_subjects", assignmentId);
-    await updateDoc(assignRef, data);
+    await updateDoc(assignRef, updateData);
 };
 
 export const deleteFacultyAssignment = async (assignmentId) => {
@@ -326,18 +363,43 @@ export const getAllStudents = async () => {
     return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
 };
 
+export const getFilteredStudents = async (departmentId, programId, semesterId) => {
+    let q = collection(db, "students");
+
+    // Primary filter (Firestore only requires single index for this)
+    if (semesterId) {
+        q = query(q, where("semesterId", "==", semesterId));
+    }
+
+    const querySnapshot = await getDocs(q);
+    let students = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+
+    // Apply remaining filters locally to avoid composite index errors
+    if (departmentId) {
+        students = students.filter(s => s.departmentId === departmentId);
+    }
+    if (programId) {
+        students = students.filter(s => s.programId === programId);
+    }
+
+    return students;
+};
+
 // ===========================
 // ATTENDANCE
 // ===========================
 
 export const recordAttendance = async (data) => {
-    // data: { studentId, subjectId, semesterId, date (Timestamp/Date), status, dateString }
+    // data: { studentId, courseId, semesterId, date (Timestamp/Date), status, dateString }
+
+    // UI's "courseId" is DB "subjectId"
+    const subjectId = data.courseId || data.subjectId;
 
     // Check for existing record to prevent duplicates/allow updates
     const q = query(
         collection(db, "attendance_records"),
         where("studentId", "==", data.studentId),
-        where("subjectId", "==", data.subjectId),
+        where("subjectId", "==", subjectId),
         where("dateString", "==", data.dateString)
     );
 
@@ -354,16 +416,20 @@ export const recordAttendance = async (data) => {
         // Create new
         await addDoc(collection(db, "attendance_records"), {
             ...data,
+            subjectId, // Explicitly map for DB
             createdAt: serverTimestamp()
         });
     }
 };
 
 export const getAttendanceRecords = async (filters = {}) => {
-    // filters: { semesterId, subjectId, dateString, studentId, startDate, endDate }
+    // filters: { semesterId, courseId, dateString, studentId, startDate, endDate }
     let constraints = [];
 
     if (filters.semesterId) constraints.push(where("semesterId", "==", filters.semesterId));
+
+    // DB expects subjectId
+    if (filters.courseId) constraints.push(where("subjectId", "==", filters.courseId));
     if (filters.subjectId) constraints.push(where("subjectId", "==", filters.subjectId));
 
     // Exact date
@@ -377,7 +443,14 @@ export const getAttendanceRecords = async (filters = {}) => {
 
     const q = query(collection(db, "attendance_records"), ...constraints);
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            courseId: data.courseId || data.subjectId // Map subjectId -> courseId for UI
+        };
+    });
 };
 
 export const getRecentAttendanceActivity = async (limitCount = 5) => {
@@ -414,36 +487,32 @@ export const getRecentAttendanceActivity = async (limitCount = 5) => {
 // SYLLABUS MANAGEMENT
 // ===========================
 
-export const getSyllabus = async (subjectId) => {
-    const q = query(collection(db, "course_syllabus"), where("subjectId", "==", subjectId));
+export const getSyllabus = async (courseId) => {
+    // UI "courseId" is DB "subjectId"
+    const q = query(collection(db, "subject_syllabus"), where("subjectId", "==", courseId));
     const querySnapshot = await getDocs(q);
     if (querySnapshot.empty) return { topics: [] };
-    return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+    return {
+        id: querySnapshot.docs[0].id,
+        ...querySnapshot.docs[0].data(),
+        courseId: querySnapshot.docs[0].data().subjectId || querySnapshot.docs[0].data().courseId // For UI backwards compat
+    };
 };
 
-export const saveSyllabus = async (subjectId, topics) => {
-    if (!subjectId) {
-        console.error("saveSyllabus Error: subjectId is missing!");
-        throw new Error("Invalid Subject ID");
+export const saveSyllabus = async (courseId, topics) => {
+    if (!courseId) {
+        console.error("saveSyllabus Error: courseId (Subject ID) is missing!");
+        throw new Error("Invalid Course ID");
     }
 
     // Check if exists
-    const q = query(collection(db, "course_syllabus"), where("subjectId", "==", subjectId));
+    const q = query(collection(db, "subject_syllabus"), where("subjectId", "==", courseId));
     const querySnapshot = await getDocs(q);
 
     if (!querySnapshot.empty) {
         // Update existing
         const docId = querySnapshot.docs[0].id;
         const existingData = querySnapshot.docs[0].data();
-
-        // Merge strategy: Keep existing 'completed' status if topic name matches
-        // Simple strategy for now: Overwrite list but try to preserve if exact match? 
-        // Plan says: Overwrite. New topics start uncompleted.
-        // But if I edit a topic name, I lose completion. That's acceptable for v1.
-
-        // However, if we just want to ADD/REMOVE topics without resetting ALL completion:
-        // We'd need to be careful.
-        // Let's just Map the new topics to the old structure if it exists.
 
         const newTopics = topics.map(t => {
             const oldTopic = existingData.topics?.find(ot => ot.name === t.name);
@@ -453,20 +522,21 @@ export const saveSyllabus = async (subjectId, topics) => {
             };
         });
 
-        const syllabusRef = doc(db, "course_syllabus", docId);
+        const syllabusRef = doc(db, "subject_syllabus", docId);
         await updateDoc(syllabusRef, {
             topics: newTopics,
             lastUpdated: serverTimestamp()
         });
-        console.log("Syllabus updated for subject:", subjectId);
+        console.log("Syllabus updated for course (subject):", courseId);
     } else {
         // Create new
         const newTopics = topics.map(t => ({ name: t.name, completed: false }));
-        await addDoc(collection(db, "course_syllabus"), {
-            subjectId,
+        await addDoc(collection(db, "subject_syllabus"), {
+            subjectId: courseId, // DB relies on subjectId
+            courseId, // Included for backward compatibility in UI calls
             topics: newTopics,
             createdAt: serverTimestamp()
         });
-        console.log("Syllabus created for subject:", subjectId);
+        console.log("Syllabus created for course (subject):", courseId);
     }
 };

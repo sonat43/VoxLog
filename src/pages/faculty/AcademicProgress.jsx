@@ -1,14 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { CheckCircle, Circle, Book, Save, AlertCircle } from 'lucide-react';
-import { getMySubjects, getSyllabus, updateTopicStatus, initializeSyllabus } from '../../services/facultyService';
+import { getMyCourses, getSyllabus, updateTopicStatus, initializeSyllabus } from '../../services/facultyService';
 import { useAuth } from '../../context/AuthContext';
 import Toast from '../../components/common/Toast';
 
 const AcademicProgress = () => {
     const { user } = useAuth();
-    const [subjects, setSubjects] = useState([]);
-    const [selectedSubject, setSelectedSubject] = useState(null);
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState(null);
     const [syllabus, setSyllabus] = useState({ topics: [] });
     const [loading, setLoading] = useState(true);
     const [toast, setToast] = useState(null);
@@ -23,38 +23,38 @@ const AcademicProgress = () => {
     ];
 
     useEffect(() => {
-        const fetchSubjects = async () => {
+        const fetchCourses = async () => {
             if (user?.uid) {
                 try {
-                    const mySubjects = await getMySubjects(user.uid);
-                    setSubjects(mySubjects);
-                    if (mySubjects.length > 0) {
-                        setSelectedSubject(mySubjects[0]);
+                    const myCourses = await getMyCourses(user.uid);
+                    setCourses(myCourses);
+                    if (myCourses.length > 0) {
+                        setSelectedCourse(myCourses[0]);
                     }
                 } catch (error) {
-                    console.error("Error fetching subjects:", error);
-                    setToast({ message: "Failed to load subjects", type: "error" });
+                    console.error("Error fetching courses:", error);
+                    setToast({ message: "Failed to load courses", type: "error" });
                 } finally {
                     setLoading(false);
                 }
             }
         };
-        fetchSubjects();
+        fetchCourses();
     }, [user]);
 
     useEffect(() => {
-        if (selectedSubject) {
-            loadSyllabus(selectedSubject.id);
+        if (selectedCourse) {
+            loadSyllabus(selectedCourse.id);
         }
-    }, [selectedSubject]);
+    }, [selectedCourse]);
 
-    const loadSyllabus = async (subjectId) => {
+    const loadSyllabus = async (courseId) => {
         setLoading(true);
         try {
-            let data = await getSyllabus(subjectId);
+            let data = await getSyllabus(courseId);
             if (data.topics.length === 0) {
                 // Auto-initialize for demo purposes
-                await initializeSyllabus(subjectId, defaultTopics);
+                await initializeSyllabus(courseId, defaultTopics);
                 data = { topics: defaultTopics, id: 'new' }; // temporary local state update
             }
             setSyllabus(data);
@@ -104,17 +104,17 @@ const AcademicProgress = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <Book color="#14b8a6" /> Course Progress Tracker
+                        <Book color="#14b8a6" /> Program Progress Tracker
                     </h1>
                     <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>Track syllabus coverage and teaching milestones.</p>
                 </div>
 
-                {/* Subject Selector */}
+                {/* Course Selector */}
                 <select
-                    value={selectedSubject?.id || ''}
+                    value={selectedCourse?.id || ''}
                     onChange={(e) => {
-                        const sub = subjects.find(s => s.id === e.target.value);
-                        setSelectedSubject(sub);
+                        const sub = courses.find(s => s.id === e.target.value);
+                        setSelectedCourse(sub);
                     }}
                     style={{
                         padding: '0.75rem 1rem',
@@ -126,7 +126,7 @@ const AcademicProgress = () => {
                         cursor: 'pointer'
                     }}
                 >
-                    {subjects.map(s => (
+                    {courses.map(s => (
                         <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
                     ))}
                 </select>
@@ -134,7 +134,7 @@ const AcademicProgress = () => {
 
             {loading ? (
                 <div style={{ color: 'white', textAlign: 'center', padding: '2rem' }}>Loading data...</div>
-            ) : !selectedSubject ? (
+            ) : !selectedCourse ? (
                 <div style={{
                     padding: '3rem',
                     background: 'rgba(31, 41, 55, 0.5)',
@@ -143,8 +143,8 @@ const AcademicProgress = () => {
                     border: '1px dashed rgba(255,255,255,0.1)'
                 }}>
                     <AlertCircle size={48} color="#9ca3af" style={{ margin: '0 auto 1rem auto' }} />
-                    <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>No Courses Assigned</h3>
-                    <p style={{ color: '#9ca3af' }}>You have not been assigned any subjects yet. Contact the administrator.</p>
+                    <h3 style={{ color: 'white', marginBottom: '0.5rem' }}>No Programs Assigned</h3>
+                    <p style={{ color: '#9ca3af' }}>You have not been assigned any courses yet. Contact the administrator.</p>
                 </div>
             ) : (
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 350px', gap: '2rem' }}>

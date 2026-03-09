@@ -85,17 +85,19 @@ class STTProcessor:
         # 1. Configuration & Maps
         word_to_num = {
             'zero': '0', 'one': '1', 'won': '1', 'on': '1', 'o': '1', 'two': '2', 'to': '2', 'too': '2', 'do': '2',
-            'three': '3', 'tree': '3', 'the': '3', 'four': '4', 'for': '4', 'fore': '4', 'five': '5', 'fine': '5',
-            'fire': '5', 'six': '6', 'sex': '6', 'sick': '6', 'seven': '7', 'heaven': '7', 'eight': '8', 'ate': '8',
-            'h': '8', 'nine': '9', 'night': '9', 'line': '9', 'ten': '10', 'then': '10', 'pen': '10',
+            'tu': '2', 'true': '2', 'three': '3', 'tree': '3', 'the': '3', 'free': '3', 'four': '4', 'for': '4', 
+            'fore': '4', 'or': '4', 'five': '5', 'fine': '5', 'fire': '5', 'hi': '5', 'high': '5', 'six': '6', 
+            'sex': '6', 'sick': '6', 'seven': '7', 'heaven': '7', 'eight': '8', 'ate': '8', 'h': '8', 'nine': '9', 
+            'night': '9', 'line': '9', 'mine': '9', 'ten': '10', 'then': '10', 'pen': '10', 'tin': '10',
             'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14',
             'fifteen': '15', 'sixteen': '16', 'seventeen': '17', 'eighteen': '18',
-            'nineteen': '19', 'twenty': '20'
+            'nineteen': '19', 'twenty': '20', 'twentyone': '21', 'twentytwo': '22',
+            'twentythree': '23', 'twentyfour': '24', 'twentyfive': '25'
         }
         
         # 2. Pre-processing
         # Replace common separators with spaces to isolate numbers
-        text = text.lower().replace(',', ' ').replace('.', ' ').replace(' next ', ' ')
+        text = text.lower().replace(',', ' ').replace('.', ' ').replace('-', ' ').replace(' next ', ' ').replace(' and ', ' ')
         
         extracted = []
         import re

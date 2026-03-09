@@ -50,12 +50,12 @@ export const getTimetable = async (semesterId) => {
 };
 
 /**
- * Generates a timetable automatically based on provided subjects.
- * Uses shuffling and auxiliary subjects to create a mixed, realistic schedule.
- * @param {Array} subjects - List of subject objects
+ * Generates a timetable automatically based on provided courses.
+ * Uses shuffling and auxiliary courses to create a mixed, realistic schedule.
+ * @param {Array} courses - List of course objects
  * @returns {Object} Generated schedule
  */
-export const generateTimetable = (subjects) => {
+export const generateTimetable = (courses) => {
     const days = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday'];
     const periods = [
         { start: '08:00', end: '09:00' },
@@ -69,12 +69,12 @@ export const generateTimetable = (subjects) => {
 
     const schedule = {};
 
-    // Filter useful subjects
-    const validSubjects = subjects.filter(s => s && s.name);
-    if (validSubjects.length === 0) return {};
+    // Filter useful courses
+    const validCourses = courses.filter(s => s && s.name);
+    if (validCourses.length === 0) return {};
 
-    // Auxiliary subjects to add variety
-    const auxSubjects = [
+    // Auxiliary courses to add variety
+    const auxCourses = [
         { id: 'lib', name: 'Library' },
         { id: 'sports', name: 'Sports' },
         { id: 'seminar', name: 'Seminar' },
@@ -95,17 +95,17 @@ export const generateTimetable = (subjects) => {
     days.forEach(day => {
         schedule[day] = [];
 
-        // Create a daily pool of subjects
-        // Start with the core subjects
-        let dailyPool = [...validSubjects];
+        // Create a daily pool of courses
+        // Start with the core courses
+        let dailyPool = [...validCourses];
 
-        // If we have fewer subjects than periods, add some duplicates or aux subjects to fill the day
+        // If we have fewer courses than periods, add some duplicates or aux courses to fill the day
         while (dailyPool.length < periods.length) {
-            // Add a random core subject
-            dailyPool.push(validSubjects[Math.floor(Math.random() * validSubjects.length)]);
-            // Occasionally add an aux subject (30% chance)
+            // Add a random core course
+            dailyPool.push(validCourses[Math.floor(Math.random() * validCourses.length)]);
+            // Occasionally add an aux course (30% chance)
             if (Math.random() > 0.7) {
-                dailyPool.push(auxSubjects[Math.floor(Math.random() * auxSubjects.length)]);
+                dailyPool.push(auxCourses[Math.floor(Math.random() * auxCourses.length)]);
             }
         }
 
@@ -123,13 +123,13 @@ export const generateTimetable = (subjects) => {
 
         // Assign to periods (take the first N needed)
         periods.forEach((period, pIndex) => {
-            const subject = dailyPool[pIndex % dailyPool.length];
+            const course = dailyPool[pIndex % dailyPool.length];
 
             schedule[day].push({
                 periodIndex: pIndex,
                 timeRange: `${period.start} - ${period.end}`,
-                subjectId: subject.id,
-                subjectname: subject.name,
+                courseId: course.id,
+                coursename: course.name,
                 facultyId: null
             });
         });
@@ -148,15 +148,15 @@ export const generateTimetable = (subjects) => {
 export const getFacultyScheduleForDate = async (facultyId, dateString) => {
     try {
         console.log(`[DEBUG] getFacultyScheduleForDate: ${facultyId} on ${dateString}`);
-        // 1. Get Faculty's Subjects
+        // 1. Get Faculty's Courses
         const assignments = await getFacultyAssignmentsByFaculty(facultyId);
         console.log(`[DEBUG] Assignments found for ${facultyId}:`, assignments);
         if (assignments.length === 0) return [];
 
-        const subjectIds = assignments.map(a => a.subjectId);
+        const courseIds = assignments.map(a => a.courseId);
 
         // 2. Scan all Timetables
-        // Optimization: In production, we should filter by semesterIds linked to subjects.
+        // Optimization: In production, we should filter by semesterIds linked to courses.
         const timetablesSnap = await getDocs(collection(db, "timetables"));
 
         // Robust Date Parsing (Fix for timezone issues)
@@ -175,7 +175,7 @@ export const getFacultyScheduleForDate = async (facultyId, dateString) => {
 
             if (schedule && schedule[dayName]) {
                 schedule[dayName].forEach(slot => {
-                    if (subjectIds.includes(slot.subjectId)) {
+                    if (courseIds.includes(slot.courseId)) {
                         mySlots.push({
                             ...slot,
                             semesterId,

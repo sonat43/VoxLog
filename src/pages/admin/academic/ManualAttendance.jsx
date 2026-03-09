@@ -83,7 +83,7 @@ const ManualAttendance = () => {
         try {
             const records = await getAttendanceRecords({
                 semesterId: selectedSemester,
-                subjectId: slot.subjectId,
+                courseId: slot.courseId,
                 dateString: selectedDate
             });
 
@@ -134,8 +134,8 @@ const ManualAttendance = () => {
                 return recordAttendance({
                     studentId: student.id,
                     studentName: student.name,
-                    subjectId: activeSlot.subjectId,
-                    subjectName: activeSlot.subjectname,
+                    courseId: activeSlot.courseId,
+                    courseName: activeSlot.coursename,
                     semesterId: selectedSemester,
                     date: new Date(selectedDate),
                     dateString: selectedDate,
@@ -260,8 +260,8 @@ const ManualAttendance = () => {
                                                 promises.push(recordAttendance({
                                                     studentId: student.id,
                                                     studentName: student.name,
-                                                    subjectId: slot.subjectId,
-                                                    subjectName: slot.subjectname,
+                                                    courseId: slot.courseId,
+                                                    courseName: slot.coursename,
                                                     semesterId: selectedSemester,
                                                     date: new Date(d),
                                                     dateString: dateString,
@@ -303,7 +303,7 @@ const ManualAttendance = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                             <div>
                                 <button onClick={() => setActiveSlot(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '0.5rem' }}>← Back to Sessions</button>
-                                <h2 style={{ color: 'white', margin: 0 }}>{activeSlot.subjectname}</h2>
+                                <h2 style={{ color: 'white', margin: 0 }}>{activeSlot.coursename}</h2>
                                 <span style={{ color: '#94a3b8' }}>{activeSlot.timeRange}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem' }}>
@@ -381,7 +381,7 @@ const ManualAttendance = () => {
                                                 <div style={{ color: 'white', fontWeight: 600, fontSize: '0.9rem' }}>{slot.timeRange}</div>
                                             </div>
                                             <div>
-                                                <h3 style={{ color: 'white', margin: '0 0 0.25rem 0' }}>{slot.subjectname}</h3>
+                                                <h3 style={{ color: 'white', margin: '0 0 0.25rem 0' }}>{slot.coursename}</h3>
                                                 <span style={{ color: '#94a3b8' }}>Period {slot.periodIndex + 1}</span>
                                             </div>
                                         </div>

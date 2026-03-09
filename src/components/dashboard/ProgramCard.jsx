@@ -2,7 +2,7 @@ import React from 'react';
 import { motion } from 'framer-motion';
 import { Users, Clock } from 'lucide-react';
 
-const CourseCard = ({ courseCode, courseName, section, studentCount, status, statusMessage, onAction }) => {
+const ProgramCard = ({ programCode, programName, section, studentCount, status, statusMessage, onAction }) => {
     const isActive = status === 'active';
 
     return (
@@ -45,7 +45,7 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, sta
                     textTransform: 'uppercase',
                     letterSpacing: '0.05em'
                 }}>
-                    {courseCode}
+                    {programCode}
                 </div>
                 <h3 style={{
                     fontSize: '1.125rem',
@@ -59,7 +59,7 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, sta
                     WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical'
                 }}>
-                    {courseName}
+                    {programName}
                 </h3>
 
                 <div style={{
@@ -78,29 +78,10 @@ const CourseCard = ({ courseCode, courseName, section, studentCount, status, sta
                     </span>
                 </div>
 
-                <button
-                    onClick={onAction}
-                    style={{
-                        width: '100%',
-                        padding: '0.75rem',
-                        background: isActive ? 'var(--color-primary)' : 'rgba(255, 255, 255, 0.05)',
-                        color: isActive ? 'white' : 'var(--color-text-muted)',
-                        border: isActive ? 'none' : '1px solid var(--color-border)',
-                        borderRadius: '0.5rem',
-                        fontWeight: 600,
-                        cursor: 'pointer',
-                        transition: 'background 0.2s',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: '0.5rem'
-                    }}
-                >
-                    <Clock size={16} /> {isActive ? "Take Attendance" : "Take Attendance (Manual)"}
-                </button>
+                {/* Take Attendance button removed as requested */}
             </div>
         </motion.div>
     );
 };
 
-export default CourseCard;
+export default ProgramCard;

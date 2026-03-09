@@ -31,8 +31,8 @@ const BACKEND_URL = getBackendUrl();
 // SYLLABUS MANAGEMENT
 // ===========================
 
-export const getSyllabus = async (subjectId) => {
-    const q = query(collection(db, "course_syllabus"), where("subjectId", "==", subjectId));
+export const getSyllabus = async (courseId) => { // courseId in UI is DB subjectId
+    const q = query(collection(db, "subject_syllabus"), where("subjectId", "==", courseId));
     const querySnapshot = await getDocs(q);
 
     if (querySnapshot.empty) {
@@ -40,21 +40,27 @@ export const getSyllabus = async (subjectId) => {
         return { topics: [] };
     }
 
-    // Assuming one syllabus doc per subject for now
-    return { id: querySnapshot.docs[0].id, ...querySnapshot.docs[0].data() };
+    // Assuming one syllabus doc per course for now
+    const data = querySnapshot.docs[0].data();
+    return {
+        id: querySnapshot.docs[0].id,
+        ...data,
+        courseId: data.courseId || data.subjectId // Backward UI compatibility
+    };
 };
 
 export const updateTopicStatus = async (syllabusId, topics) => {
-    const syllabusRef = doc(db, "course_syllabus", syllabusId);
+    const syllabusRef = doc(db, "subject_syllabus", syllabusId);
     await updateDoc(syllabusRef, {
         topics,
         lastUpdated: serverTimestamp()
     });
 };
 
-export const initializeSyllabus = async (subjectId, defaultTopics) => {
-    await addDoc(collection(db, "course_syllabus"), {
-        subjectId,
+export const initializeSyllabus = async (courseId, defaultTopics) => {
+    await addDoc(collection(db, "subject_syllabus"), {
+        subjectId: courseId,
+        courseId, // Backward SDK comp
         topics: defaultTopics,
         createdAt: serverTimestamp()
     });
@@ -65,23 +71,31 @@ export const initializeSyllabus = async (subjectId, defaultTopics) => {
 // ===========================
 
 export const createAssessment = async (assessmentData) => {
-    // assessmentData: { subjectId, facultyId, title, type, maxMarks, weightage }
+    // assessmentData: { courseId, facultyId, title, type, maxMarks, weightage }
     const docRef = await addDoc(collection(db, "assessments"), {
         ...assessmentData,
+        subjectId: assessmentData.courseId, // Ensure mapped to DB structure
         createdAt: serverTimestamp(),
         status: 'published' // or 'draft'
     });
     return docRef.id;
 };
 
-export const getAssessments = async (subjectId) => {
+export const getAssessments = async (courseId) => {
     const q = query(
         collection(db, "assessments"),
-        where("subjectId", "==", subjectId),
+        where("subjectId", "==", courseId), // DB uses subjectId
         orderBy("createdAt", "desc")
     );
     const querySnapshot = await getDocs(q);
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    return querySnapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+            id: doc.id,
+            ...data,
+            courseId: data.courseId || data.subjectId
+        };
+    });
 };
 
 export const saveStudentGrade = async (assessmentId, studentId, marksObtained, facultyId) => {
@@ -108,9 +122,9 @@ export const getGradesForAssessment = async (assessmentId) => {
 // ANALYTICS & EARLY WARNING
 // ===========================
 
-export const getAtRiskStudents = async (subjectId) => {
-    // 1. Get all assessments for this subject
-    const assessments = await getAssessments(subjectId);
+export const getAtRiskStudents = async (courseId) => {
+    // 1. Get all assessments for this course
+    const assessments = await getAssessments(courseId);
     if (assessments.length === 0) return [];
 
     const assessmentIds = assessments.map(a => a.id);
@@ -163,23 +177,24 @@ export const getAtRiskStudents = async (subjectId) => {
     return atRiskList;
 };
 
-export const getMySubjects = async (facultyId) => {
-    const q = query(collection(db, "faculty_subjects"), where("facultyId", "==", facultyId));
+export const getMyCourses = async (facultyId) => {
+    const q = query(collection(db, "faculty_subjects"), where("facultyId", "==", facultyId)); // DB is faculty_subjects
     const snapshot = await getDocs(q);
 
-    const subjects = [];
+    const courses = [];
     for (const d of snapshot.docs) {
         const data = d.data();
-        // Fetch actual subject details
-        const subDoc = await getDoc(doc(db, "subjects", data.subjectId));
+        const subjectId = data.subjectId || data.courseId;
+        // Fetch actual course details (DB courses are now subjects)
+        const subDoc = await getDoc(doc(db, "subjects", subjectId));
         if (subDoc.exists()) {
-            const subjectData = subDoc.data();
+            const courseData = subDoc.data();
             let semesterData = {};
 
             // Fetch Semester Details if linked
-            if (subjectData.semesterId) {
+            if (courseData.semesterId) {
                 try {
-                    const semDoc = await getDoc(doc(db, "semesters", subjectData.semesterId));
+                    const semDoc = await getDoc(doc(db, "semesters", courseData.semesterId));
                     if (semDoc.exists()) {
                         semesterData = {
                             semesterName: semDoc.data().name,
@@ -187,26 +202,26 @@ export const getMySubjects = async (facultyId) => {
                         };
                     }
                 } catch (err) {
-                    console.error("Error fetching semester for subject", subjectData.name, err);
+                    console.error("Error fetching semester for course", courseData.name, err);
                 }
             }
 
-            subjects.push({
+            courses.push({
                 id: subDoc.id,
-                ...subjectData,
+                ...courseData,
                 ...semesterData,
                 assignmentId: d.id,
                 academicYear: data.academicYear
             });
         }
     }
-    return subjects;
+    return courses;
 };
 
 export const getDashboardStats = async (facultyId) => {
     try {
-        // 1. Get Subjects
-        const subjects = await getMySubjects(facultyId);
+        // 1. Get Courses
+        const courses = await getMyCourses(facultyId);
 
         // Initialize Aggregates
         let totalAtRisk = 0;
@@ -218,31 +233,31 @@ export const getDashboardStats = async (facultyId) => {
         // Cache for semester student counts to avoid repeated fetching
         const semesterStudentCounts = {};
 
-        // 2. Iterate Subjects
-        for (const subject of subjects) {
+        // 2. Iterate Courses
+        for (const course of courses) {
             // --- Syllabus Progress ---
             try {
-                const syllabus = await getSyllabus(subject.id);
+                const syllabus = await getSyllabus(course.id);
                 if (syllabus && syllabus.topics) {
                     totalSyllabusTopics += syllabus.topics.length;
                     completedSyllabusTopics += syllabus.topics.filter(t => t.completed).length;
                 }
             } catch (err) {
-                console.warn("Syllabus fetch failed for", subject.name, err);
+                console.warn("Syllabus fetch failed for", course.name, err);
             }
 
             // --- Assessments & Grading ---
             try {
-                const assessments = await getAssessments(subject.id);
+                const assessments = await getAssessments(course.id);
 
                 // Get Student Count for this Semester
-                if (subject.semesterId) {
-                    if (semesterStudentCounts[subject.semesterId] === undefined) {
-                        const qStudents = query(collection(db, "students"), where("semesterId", "==", subject.semesterId));
+                if (course.semesterId) {
+                    if (semesterStudentCounts[course.semesterId] === undefined) {
+                        const qStudents = query(collection(db, "students"), where("semesterId", "==", course.semesterId));
                         const snap = await getDocs(qStudents);
-                        semesterStudentCounts[subject.semesterId] = snap.size;
+                        semesterStudentCounts[course.semesterId] = snap.size;
                     }
-                    const studentCount = semesterStudentCounts[subject.semesterId];
+                    const studentCount = semesterStudentCounts[course.semesterId];
 
                     // Calculate Pending Grading
                     for (const assessment of assessments) {
@@ -259,7 +274,7 @@ export const getDashboardStats = async (facultyId) => {
                             recentActivity.push({
                                 type: 'assessment',
                                 title: assessment.title,
-                                subject: subject.name,
+                                course: course.name,
                                 date: assessment.createdAt.toDate()
                             });
                         }
@@ -267,8 +282,8 @@ export const getDashboardStats = async (facultyId) => {
                 }
 
                 // --- At Risk (Assessments dependent) ---
-                const atRiskInSubject = await getAtRiskStudents(subject.id);
-                totalAtRisk += atRiskInSubject.length;
+                const atRiskInCourse = await getAtRiskStudents(course.id);
+                totalAtRisk += atRiskInCourse.length;
 
             } catch (err) {
                 // console.warn("Assessment/Stats fetch failed (likely missing index):", err.message);
@@ -285,7 +300,7 @@ export const getDashboardStats = async (facultyId) => {
                     recentActivity.push({
                         type: 'attendance',
                         title: `Attendance: ${att.mode === 'voice' ? 'Voice' : 'Camera'}`,
-                        subject: att.subjectName,
+                        course: att.courseName,
                         date: att.timestamp.toDate()
                     });
                 }
@@ -300,7 +315,7 @@ export const getDashboardStats = async (facultyId) => {
             : 0;
 
         return {
-            subjectsCount: subjects.length,
+            coursesCount: courses.length,
             atRiskCount: totalAtRisk,
             pendingGrading: totalPendingGrading,
             syllabusProgress: syllabusProgress,
@@ -363,8 +378,8 @@ export const saveAttendanceSession = async (sessionData) => {
                     studentId: studentDoc.id,
                     studentName: student.name,
                     regNo: student.regNo,
-                    subjectId: sessionData.subjectId,
-                    subjectName: sessionData.subjectName,
+                    courseId: sessionData.courseId,
+                    courseName: sessionData.courseName,
                     semesterId: sessionData.semesterId,
                     dateString: todayStr,
                     slotTime: timeString,
@@ -421,10 +436,10 @@ export const evaluateFacultyDailyAttendance = async (facultyId, dateString) => {
         );
         const sessionsSnap = await getDocs(qSessions);
 
-        // Count unique subjects handled today
-        const handledSubjectIds = new Set();
+        // Count unique courses handled today
+        const handledCourseIds = new Set();
         sessionsSnap.docs.forEach(doc => {
-            handledSubjectIds.add(doc.data().subjectId);
+            handledCourseIds.add(doc.data().courseId);
         });
 
         // 3. Compare Required vs Handled
@@ -433,7 +448,7 @@ export const evaluateFacultyDailyAttendance = async (facultyId, dateString) => {
 
         schedule.forEach(slot => {
             targetClasses++;
-            if (handledSubjectIds.has(slot.subjectId)) {
+            if (handledCourseIds.has(slot.courseId)) {
                 completedClasses++;
             }
         });
@@ -536,11 +551,15 @@ export const getAttendanceHistory = async (facultyId) => {
     try {
         const q = query(
             collection(db, "attendance_history"),
-            where("facultyId", "==", facultyId),
-            orderBy("timestamp", "desc")
+            where("facultyId", "==", facultyId)
         );
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const records = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return records.sort((a, b) => {
+            const timeA = a.timestamp?.toMillis() || 0;
+            const timeB = b.timestamp?.toMillis() || 0;
+            return timeB - timeA;
+        });
     } catch (error) {
         console.error("Error fetching attendance history:", error);
         return [];
@@ -592,7 +611,7 @@ export const processEndOfDayEmails = async () => {
                 // Only send if parentEmail exists
                 if (studentData.parentEmail && studentData.parentEmail.trim() !== '') {
                     const records = recordsByStudent[studentId];
-                    // Sort records by slotTime or subject name to ensure consistent order
+                    // Sort records by slotTime or course name to ensure consistent order
                     records.sort((a, b) => (a.slotTime || '').localeCompare(b.slotTime || ''));
 
                     const result = await sendDailyParentReport(
@@ -637,16 +656,16 @@ export const processEndOfDayEmails = async () => {
 // RESOURCE CENTER
 // ===========================
 
-export const uploadResource = async (subjectId, resourceData, file) => {
+export const uploadResource = async (courseId, resourceData, file) => {
     try {
         let downloadUrl = resourceData.url;
         let storageRefPath = null;
 
         // 1. Upload File if present
         if (file) {
-            // Create a unique path: resources/{subjectId}/{timestamp}_{filename}
+            // Create a unique path: resources/{courseId}/{timestamp}_{filename}
             const uniqueName = `${Date.now()}_${file.name}`;
-            storageRefPath = `resources/${subjectId}/${uniqueName}`;
+            storageRefPath = `resources/${courseId}/${uniqueName}`;
             const storageRef = ref(storage, storageRefPath);
 
             await uploadBytes(storageRef, file);
@@ -654,8 +673,9 @@ export const uploadResource = async (subjectId, resourceData, file) => {
         }
 
         // 2. Save Metadata to Firestore
-        const docRef = await addDoc(collection(db, "course_resources"), {
-            subjectId,
+        const docRef = await addDoc(collection(db, "subject_resources"), {
+            subjectId: courseId, // DB expects subjectId
+            courseId,            // UI compat
             title: resourceData.title,
             type: resourceData.type,
             url: downloadUrl,
@@ -672,11 +692,11 @@ export const uploadResource = async (subjectId, resourceData, file) => {
     }
 };
 
-export const getSubjectResources = async (subjectId) => {
+export const getCourseResources = async (courseId) => {
     try {
         const q = query(
-            collection(db, "course_resources"),
-            where("subjectId", "==", subjectId),
+            collection(db, "subject_resources"),
+            where("subjectId", "==", courseId),
             orderBy("createdAt", "desc")
         );
         const querySnapshot = await getDocs(q);
@@ -685,11 +705,12 @@ export const getSubjectResources = async (subjectId) => {
             return {
                 id: doc.id,
                 ...data,
+                courseId: data.courseId || data.subjectId,
                 date: data.createdAt ? data.createdAt.toDate().toISOString().split('T')[0] : 'Just now'
             };
         });
     } catch (error) {
-        console.error(`Error fetching resources for subject ${subjectId}:`, error);
+        console.error(`Error fetching resources for course ${courseId}:`, error);
         // Fallback or empty on error (e.g. missing index)
         if (error.code === 'failed-precondition') {
             console.warn("Missing index for resources. Returning empty for now.");
@@ -701,7 +722,7 @@ export const getSubjectResources = async (subjectId) => {
 export const deleteResource = async (resourceId, storageRefPath) => {
     try {
         // 1. Delete from Firestore
-        await deleteDoc(doc(db, "course_resources", resourceId));
+        await deleteDoc(doc(db, "subject_resources", resourceId));
 
         // 2. Delete from Storage if applicable
         if (storageRefPath) {
@@ -721,23 +742,45 @@ export const deleteResource = async (resourceId, storageRefPath) => {
 
 export const getFacultyClassAttendanceAverages = async (facultyId) => {
     try {
-        const subjects = await getMySubjects(facultyId);
-        const averages = await Promise.all(subjects.map(async (subject) => {
-            const q = query(collection(db, "attendance_records"), where("subjectId", "==", subject.id));
+        const courses = await getMyCourses(facultyId);
+
+        let averages = [];
+        for (const course of courses) {
+            console.log(`[DEBUG] Fetching avg for course: ${course.name} (${course.id})`);
+            const q = query(collection(db, "attendance_records"), where("courseId", "==", course.id));
             const snap = await getDocs(q);
+
             let present = 0;
             const total = snap.size;
+
             snap.forEach(doc => {
-                if (doc.data().status === 'Present') present++;
+                const data = doc.data();
+                if (data.status === 'Present' || data.status === 'present') {
+                    present++;
+                }
             });
-            return {
-                subjectId: subject.id,
-                subjectName: subject.name,
-                code: subject.code,
-                percentage: total > 0 ? Math.round((present / total) * 100) : 0,
-                totalClassesEvaluated: total
-            };
-        }));
+
+            console.log(`[DEBUG] Course ${course.name}: ${total} records, ${present} present`);
+
+            if (total > 0) {
+                averages.push({
+                    courseId: course.id,
+                    courseName: course.name,
+                    code: course.code,
+                    percentage: Math.round((present / total) * 100),
+                    totalClassesEvaluated: total
+                });
+            } else {
+                averages.push({
+                    courseId: course.id,
+                    courseName: course.name,
+                    code: course.code,
+                    percentage: 0,
+                    totalClassesEvaluated: 0
+                });
+            }
+        }
+
         return averages;
     } catch (error) {
         console.error("Error fetching class attendance averages:", error);
@@ -747,8 +790,8 @@ export const getFacultyClassAttendanceAverages = async (facultyId) => {
 
 export const getStudentBirthdaysToday = async (facultyId) => {
     try {
-        const subjects = await getMySubjects(facultyId);
-        const semesterIds = [...new Set(subjects.map(s => s.semesterId).filter(Boolean))];
+        const courses = await getMyCourses(facultyId);
+        const semesterIds = [...new Set(courses.map(s => s.semesterId).filter(Boolean))];
 
         const today = new Date();
         const mm = String(today.getMonth() + 1).padStart(2, '0');
@@ -769,7 +812,7 @@ export const getStudentBirthdaysToday = async (facultyId) => {
                         birthdays.push({
                             id: doc.id,
                             name: data.name,
-                            semesterName: subjects.find(s => s.semesterId === semId)?.semesterName || 'Class'
+                            semesterName: courses.find(s => s.semesterId === semId)?.semesterName || 'Class'
                         });
                     }
                 }
@@ -786,11 +829,12 @@ export const getFacultyPersonalAttendanceHistory = async (facultyId) => {
     try {
         const q = query(
             collection(db, "faculty_attendance"),
-            where("facultyId", "==", facultyId),
-            orderBy("dateString", "desc")
+            where("facultyId", "==", facultyId)
         );
         const snap = await getDocs(q);
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const records = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        // Sort client-side to avoid requiring Firebase Composite Index
+        return records.sort((a, b) => new Date(b.dateString) - new Date(a.dateString));
     } catch (error) {
         console.error("Error fetching personal attendance history:", error);
         return [];

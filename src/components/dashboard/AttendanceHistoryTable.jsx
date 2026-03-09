@@ -30,7 +30,7 @@ const AttendanceHistoryTable = ({ history }) => {
                         <Search size={16} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--color-text-muted)' }} />
                         <input
                             type="text"
-                            placeholder="Search course..."
+                            placeholder="Search program..."
                             style={{
                                 padding: '0.5rem 0.75rem 0.5rem 2.25rem',
                                 borderRadius: '0.5rem',
@@ -64,7 +64,7 @@ const AttendanceHistoryTable = ({ history }) => {
                 <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
                     <thead style={{ background: 'var(--color-bg)' }}>
                         <tr>
-                            {['Date', 'Course', 'Section', 'Mode', 'Attendance %', 'Status'].map(header => (
+                            {['Date', 'Program', 'Section', 'Mode', 'Attendance %', 'Status'].map(header => (
                                 <th key={header} style={{
                                     padding: '1rem 1.5rem',
                                     fontSize: '0.75rem',
@@ -106,7 +106,7 @@ const AttendanceHistoryTable = ({ history }) => {
                                     whileHover={{ background: 'var(--color-bg)' }}
                                 >
                                     <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', fontWeight: 500 }}>{item.date}</td>
-                                    <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', fontWeight: 600 }}>{item.course}</td>
+                                    <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', fontWeight: 600 }}>{item.program}</td>
                                     <td style={{ padding: '1rem 1.5rem', fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{item.section}</td>
                                     <td style={{ padding: '1rem 1.5rem' }}>
                                         <div style={{

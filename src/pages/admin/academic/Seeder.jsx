@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { provisionUser, seedFacultyAttendance } from '../../../services/adminService';
-import { addDepartment, addCourse, addSemester, addSubject, assignFacultyToSubject, getDepartments, getCourses, getSemesters, getStudentsBySemester, recordAttendance, addStudent, getSubjects } from '../../../services/academicService';
+import { addDepartment, addProgram, addSemester, addCourse, assignFacultyToCourse, getDepartments, getPrograms, getSemesters, getStudentsBySemester, recordAttendance, addStudent, getCourses } from '../../../services/academicService';
 import { getTimetable, saveTimetable, generateTimetable } from '../../../services/timetableService';
 import { Loader2, CheckCircle, AlertTriangle } from 'lucide-react';
 
@@ -13,7 +13,7 @@ const Seeder = () => {
     const runSeeder = async () => {
         setStatus('running');
         setLogs([]);
-        addLog("Starting Data Seeding (Departments, Courses, Students, Timetables, Attendance)...");
+        addLog("Starting Data Seeding (Departments, Programs, Students, Timetables, Attendance)...");
 
         try {
             // 1. DEPARTMENTS
@@ -36,22 +36,22 @@ const Seeder = () => {
             const allDepts = await getDepartments();
             allDepts.forEach(d => deptIds[d.name] = d.id);
 
-            // 2. COURSES
-            const courses = [
+            // 2. PROGRAMS
+            const programs = [
                 { name: "B.Tech CS", dept: "Computer Science", duration: 4 },
                 { name: "B.Tech Mechanical", dept: "Mechanical", duration: 4 },
                 { name: "B.Tech Automobile", dept: "Automobile", duration: 4 }
             ];
-            const courseIds = {}; // Name -> ID for linking
+            const programIds = {}; // Name -> ID for linking
 
             // Modified service logic: We need IDs. We'll have to rely on fetching them or just assume they work.
-            // Since we can't easily modify service return types right now without reloading, I'll fetch courses after adding.
+            // Since we can't easily modify service return types right now without reloading, I'll fetch programs after adding.
 
-            for (const c of courses) {
+            for (const c of programs) {
                 if (deptIds[c.dept]) {
                     try {
-                        addLog(`Creating Course: ${c.name}...`);
-                        await addCourse(c.name, deptIds[c.dept], c.duration);
+                        addLog(`Creating Program: ${c.name}...`);
+                        await addProgram(c.name, deptIds[c.dept], c.duration);
                         addLog(`✅ Created ${c.name}`);
                     } catch (e) {
                         addLog(`⚠️ ${c.name}: ${e.message}`);
@@ -61,28 +61,28 @@ const Seeder = () => {
                 }
             }
 
-            // 3. SEMESTERS (Auto-generate 1-8 for each course)
-            const allCourses = await getCourses(); // Fetch newly created courses
-            for (const course of allCourses) {
+            // 3. SEMESTERS (Auto-generate 1-8 for each program)
+            const allPrograms = await getPrograms(); // Fetch newly created programs
+            for (const program of allPrograms) {
                 // Determine duration (default 4 years = 8 semesters if not specified)
-                // Seeder courses have duration, but fetched object might just have data.
-                const duration = course.duration || 4;
+                // Seeder programs have duration, but fetched object might just have data.
+                const duration = program.duration || 4;
                 const totalSemesters = duration * 2;
 
                 for (let i = 1; i <= totalSemesters; i++) {
                     try {
                         // We won't assign student count or teacher here to keep it simple, or maybe random?
                         // Let's keep it basic: just structure.
-                        await addSemester(course.id, i, 60, null); // Default 60 students
-                        // addLog(`  - Added Semester ${i} for ${course.name}`); // Too verbose?
+                        await addSemester(program.id, i, 60, null); // Default 60 students
+                        // addLog(`  - Added Semester ${i} for ${program.name}`); // Too verbose?
                     } catch (e) {
                         // Ignore "already exists" errors to avoid clutter
                         if (!e.message.includes('already exists')) {
-                            addLog(`⚠️ Sem ${i} for ${course.name}: ${e.message}`);
+                            addLog(`⚠️ Sem ${i} for ${program.name}: ${e.message}`);
                         }
                     }
                 }
-                addLog(`✅ Verified Semesters (1-${totalSemesters}) for ${course.name}`);
+                addLog(`✅ Verified Semesters (1-${totalSemesters}) for ${program.name}`);
             } // End Semester Loop
 
             // 3. FACULTY
@@ -139,8 +139,8 @@ const Seeder = () => {
                 let schedule = await getTimetable(sem.id);
                 if (!schedule) {
                     addLog(`Generating Timetable for Semester ${sem.semesterNo}...`);
-                    // Need subjects
-                    const allSubs = await getSubjects(); // Inefficient to fetch all every time but safe
+                    // Need courses
+                    const allSubs = await getCourses(); // Inefficient to fetch all every time but safe
                     const semSubs = allSubs.filter(s => s.semesterId === sem.id);
 
                     if (semSubs.length > 0) {
@@ -149,7 +149,7 @@ const Seeder = () => {
                         schedule = newSchedule;
                         addLog(`✅ Timetable created.`);
                     } else {
-                        addLog(`⚠️ No subjects for Sem ${sem.semesterNo}, skipping timetable.`);
+                        addLog(`⚠️ No courses for Sem ${sem.semesterNo}, skipping timetable.`);
                     }
                 }
                 if (schedule) timetables[sem.id] = schedule;
@@ -200,8 +200,8 @@ const Seeder = () => {
                             await recordAttendance({
                                 studentId: student.id,
                                 studentName: student.name,
-                                subjectId: slot.subjectId,
-                                subjectName: slot.subjectname,
+                                courseId: slot.courseId,
+                                courseName: slot.coursename,
                                 semesterId: sem.id,
                                 date: new Date(d), // Clone date to avoid reference issues
                                 dateString: dateString,
@@ -245,7 +245,7 @@ const Seeder = () => {
     return (
         <div style={{ padding: '2rem', color: 'white', maxWidth: '800px' }}>
             <h1>System Seeder</h1>
-            <p className="text-gray-400 mb-8">Establish initial data structure (Departments, Courses, Faculty) and mock historical data.</p>
+            <p className="text-gray-400 mb-8">Establish initial data structure (Departments, Programs, Faculty) and mock historical data.</p>
 
             <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
                 <button

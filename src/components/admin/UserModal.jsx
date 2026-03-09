@@ -75,6 +75,18 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
 
     if (!isOpen) return null;
 
+    const calculateAge = (birthDate) => {
+        if (!birthDate) return 0;
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
     const validateField = (name, value) => {
         let error = "";
 
@@ -95,6 +107,13 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
         }
 
         // Specific Validations
+        if (name === 'dateOfBirth' && value) {
+            const age = calculateAge(value);
+            if (age < 26) {
+                error = "Faculty/Staff must be at least 26 years old.";
+            }
+        }
+
         if (name === 'phone' || name === 'emergencyContactPhone') {
             if (value) {
                 if (!/^\d{10}$/.test(value)) {

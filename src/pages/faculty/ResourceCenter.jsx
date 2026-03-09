@@ -1,16 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { FileText, Folder, Upload, Trash2, Video, Link as LinkIcon } from 'lucide-react';
-import { getMySubjects, uploadResource, getSubjectResources, deleteResource } from '../../services/facultyService';
+import { getMyCourses, uploadResource, getCourseResources, deleteResource } from '../../services/facultyService';
 import { useAuth } from '../../context/AuthContext';
 import Toast from '../../components/common/Toast';
 import SimpleModal from '../../components/admin/academic/SimpleModal';
 
 const ResourceCenter = () => {
     const { user } = useAuth();
-    const [subjects, setSubjects] = useState([]);
-    const [selectedSubject, setSelectedSubject] = useState(null);
-    const [allResources, setAllResources] = useState({}); // Keyed by subjectId
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [allResources, setAllResources] = useState({}); // Keyed by courseId
     const [loading, setLoading] = useState(true);
     const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
     const [newResource, setNewResource] = useState({ title: '', type: 'File', url: '', file: null });
@@ -21,24 +21,24 @@ const ResourceCenter = () => {
     useEffect(() => {
         const init = async () => {
             if (user?.uid) {
-                const mySubjects = await getMySubjects(user.uid);
-                setSubjects(mySubjects);
+                const myCourses = await getMyCourses(user.uid);
+                setCourses(myCourses);
                 setLoading(false);
             }
         };
         init();
     }, [user]);
 
-    // Fetch Resources for Selected Subject
+    // Fetch Resources for Selected Course
     useEffect(() => {
         const fetchResources = async () => {
-            if (selectedSubject) {
+            if (selectedCourse) {
                 setLoading(true);
                 try {
-                    const docs = await getSubjectResources(selectedSubject.id);
+                    const docs = await getCourseResources(selectedCourse.id);
                     setAllResources(prev => ({
                         ...prev,
-                        [selectedSubject.id]: docs
+                        [selectedCourse.id]: docs
                     }));
                 } catch (err) {
                     console.error("Failed to load resources", err);
@@ -48,7 +48,7 @@ const ResourceCenter = () => {
             }
         };
         fetchResources();
-    }, [selectedSubject]);
+    }, [selectedCourse]);
 
     const handleUpload = async (e) => {
         e.preventDefault();
@@ -56,7 +56,7 @@ const ResourceCenter = () => {
 
         try {
             // Upload to Firebase
-            const result = await uploadResource(selectedSubject.id, newResource, newResource.file);
+            const result = await uploadResource(selectedCourse.id, newResource, newResource.file);
 
             // Add to local state
             const newItem = {
@@ -69,10 +69,10 @@ const ResourceCenter = () => {
                 storageRefPath: result.storageRefPath // Important for delete
             };
 
-            const subjectId = selectedSubject.id;
+            const courseId = selectedCourse.id;
             setAllResources(prev => ({
                 ...prev,
-                [subjectId]: [newItem, ...(prev[subjectId] || [])]
+                [courseId]: [newItem, ...(prev[courseId] || [])]
             }));
 
             setToast({ message: "Resource uploaded successfully", type: "success" });
@@ -95,7 +95,7 @@ const ResourceCenter = () => {
             await deleteResource(resourceId, storageRefPath);
             setAllResources(prev => ({
                 ...prev,
-                [selectedSubject.id]: prev[selectedSubject.id].filter(r => r.id !== resourceId)
+                [selectedCourse.id]: prev[selectedCourse.id].filter(r => r.id !== resourceId)
             }));
             setToast({ message: "Resource deleted", type: "success" });
         } catch (error) {
@@ -112,8 +112,8 @@ const ResourceCenter = () => {
         }
     };
 
-    // --- Render: Folder View (No subject selected) ---
-    if (!selectedSubject) {
+    // --- Render: Folder View (No course selected) ---
+    if (!selectedCourse) {
         return (
             <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
                 <div style={{ marginBottom: '2rem' }}>
@@ -124,15 +124,15 @@ const ResourceCenter = () => {
                 </div>
 
                 {loading ? (
-                    <div style={{ color: 'white' }}>Loading subjects...</div>
+                    <div style={{ color: 'white' }}>Loading courses...</div>
                 ) : (
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1.5rem' }}>
-                        {subjects.map(subject => (
+                        {courses.map(course => (
                             <motion.div
-                                key={subject.id}
+                                key={course.id}
                                 whileHover={{ scale: 1.02, y: -5 }}
                                 whileTap={{ scale: 0.98 }}
-                                onClick={() => setSelectedSubject(subject)}
+                                onClick={() => setSelectedCourse(course)}
                                 style={{
                                     background: 'linear-gradient(145deg, rgba(31, 41, 55, 0.6), rgba(17, 24, 39, 0.8))',
                                     borderRadius: '1rem',
@@ -156,16 +156,16 @@ const ResourceCenter = () => {
                                     <Folder size={32} fill="currentColor" fillOpacity={0.2} />
                                 </div>
                                 <div>
-                                    <h3 style={{ margin: '0 0 0.5rem 0', color: 'white', fontSize: '1.1rem' }}>{subject.name}</h3>
-                                    <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.9rem' }}>{subject.code}</p>
+                                    <h3 style={{ margin: '0 0 0.5rem 0', color: 'white', fontSize: '1.1rem' }}>{course.name}</h3>
+                                    <p style={{ margin: 0, color: '#9ca3af', fontSize: '0.9rem' }}>{course.code}</p>
                                     <div style={{ marginTop: '1rem', fontSize: '0.8rem', color: '#6b7280', background: 'rgba(0,0,0,0.2)', padding: '0.25rem 0.75rem', borderRadius: '1rem', display: 'inline-block' }}>
                                         Open Folder
                                     </div>
                                 </div>
                             </motion.div>
                         ))}
-                        {subjects.length === 0 && (
-                            <div style={{ color: '#9ca3af', gridColumn: '1/-1', textAlign: 'center' }}>No subjects assigned yet.</div>
+                        {courses.length === 0 && (
+                            <div style={{ color: '#9ca3af', gridColumn: '1/-1', textAlign: 'center' }}>No courses assigned yet.</div>
                         )}
                     </div>
                 )}
@@ -173,8 +173,8 @@ const ResourceCenter = () => {
         );
     }
 
-    // --- Render: File View (Subject Selected) ---
-    const subjectResources = allResources[selectedSubject.id] || [];
+    // --- Render: File View (Course Selected) ---
+    const courseResources = allResources[selectedCourse.id] || [];
 
     return (
         <div style={{ padding: '2rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -182,15 +182,15 @@ const ResourceCenter = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
                     <button
-                        onClick={() => setSelectedSubject(null)}
+                        onClick={() => setSelectedCourse(null)}
                         style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer', marginBottom: '0.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}
                     >
                         ← Back to Classes
                     </button>
                     <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                        <Folder color="#3b82f6" /> {selectedSubject.name}
+                        <Folder color="#3b82f6" /> {selectedCourse.name}
                     </h1>
-                    <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>Managing resources for {selectedSubject.code}</p>
+                    <p style={{ color: '#9ca3af', marginTop: '0.5rem' }}>Managing resources for {selectedCourse.code}</p>
                 </div>
             </div>
 
@@ -211,7 +211,7 @@ const ResourceCenter = () => {
                 </div>
 
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' }}>
-                    {subjectResources.map(file => (
+                    {courseResources.map(file => (
                         <motion.div
                             key={file.id}
                             initial={{ opacity: 0, scale: 0.95 }}
@@ -254,7 +254,7 @@ const ResourceCenter = () => {
                             </div>
                         </motion.div>
                     ))}
-                    {subjectResources.length === 0 && (
+                    {courseResources.length === 0 && (
                         <div style={{ gridColumn: '1/-1', textAlign: 'center', color: '#6b7280', padding: '2rem' }}>
                             <Folder size={48} style={{ opacity: 0.2, marginBottom: '0.5rem' }} />
                             <p>No resources uploaded yet.</p>
@@ -263,7 +263,7 @@ const ResourceCenter = () => {
                 </div>
             </div>
 
-            <SimpleModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} title={`Upload to ${selectedSubject.name}`}>
+            <SimpleModal isOpen={isUploadModalOpen} onClose={() => setIsUploadModalOpen(false)} title={`Upload to ${selectedCourse.name}`}>
                 <form onSubmit={handleUpload} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Title</label>

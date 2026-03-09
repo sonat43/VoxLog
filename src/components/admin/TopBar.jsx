@@ -1,9 +1,9 @@
 import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Search, Bell, LogOut, User as UserIcon } from 'lucide-react';
+import { Search, Bell, LogOut, User as UserIcon, Menu } from 'lucide-react';
 
-const TopBar = ({ isOpen }) => {
+const TopBar = ({ isOpen, toggleSidebar }) => {
     const { user, logout } = useAuth();
     const navigate = useNavigate();
     const location = useLocation();
@@ -29,7 +29,7 @@ const TopBar = ({ isOpen }) => {
     };
 
     return (
-        <header style={{
+        <header className="topbar-wrapper" style={{
             height: '64px',
             backgroundColor: '#111827', // Match sidebar
             borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
@@ -55,21 +55,39 @@ const TopBar = ({ isOpen }) => {
                 If Sidebar has branding, TopBar usually just has Title.
             */}
 
-            <h2 style={{
-                margin: 0,
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                color: 'white',
-                minWidth: '200px'
-            }}>
-                {getPageTitle(location.pathname)}
-            </h2>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <button
+                    className="show-on-mobile"
+                    onClick={toggleSidebar}
+                    style={{
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'white',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                    }}
+                >
+                    <Menu size={24} />
+                </button>
+
+                <h2 style={{
+                    margin: 0,
+                    fontSize: '1.1rem',
+                    fontWeight: 600,
+                    color: 'white',
+                    minWidth: '150px'
+                }}>
+                    {getPageTitle(location.pathname)}
+                </h2>
+            </div>
 
             {/* Right Side Actions */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
 
                 {/* Search */}
-                <div style={{ position: 'relative' }}>
+                <div style={{ position: 'relative' }} className="hide-on-mobile">
                     <Search size={18} color="#9ca3af" style={{ position: 'absolute', left: '10px', top: '50%', transform: 'translateY(-50%)' }} />
                     <input
                         type="text"
@@ -106,7 +124,7 @@ const TopBar = ({ isOpen }) => {
 
                 {/* Profile */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    <div style={{ textAlign: 'right', display: 'block' }}>
+                    <div style={{ textAlign: 'right', display: 'block' }} className="hide-on-mobile">
                         <div style={{ fontSize: '0.875rem', fontWeight: 600, color: 'white' }}>{user?.displayName || 'Admin User'}</div>
                         <div style={{ fontSize: '0.75rem', color: '#9ca3af' }}>Administrator</div>
                     </div>

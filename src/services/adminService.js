@@ -89,7 +89,7 @@ export const fetchAllUsers = async () => {
         console.log("Fetching all users and assignments...");
         const [usersSnap, assignmentsSnap] = await Promise.all([
             getDocs(collection(db, "users")),
-            getDocs(collection(db, "faculty_subjects"))
+            getDocs(collection(db, "faculty_courses"))
         ]);
 
         // Calculate assignment counts

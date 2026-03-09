@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { Users, GraduationCap, Layers, Book, Clock, Send, RefreshCw } from 'lucide-react';
 import { fetchAllUsers, getWeeklyAttendanceAnalytics } from '../../services/adminService';
-import { getAllStudents, getDepartments, getCourses, getSubjects, getRecentAttendanceActivity } from '../../services/academicService';
+import { getAllStudents, getDepartments, getPrograms, getCourses, getRecentAttendanceActivity } from '../../services/academicService';
 import { processEndOfDayEmails } from '../../services/facultyService';
 import { getAllTodaysSubstitutions } from '../../services/substitutionService';
 import { getTodayFacultyAttendance } from '../../services/adminService';
@@ -16,7 +16,7 @@ const DashboardOverview = () => {
         faculty: 0,
         students: 0,
         departments: 0,
-        courses: 0
+        programs: 0
     });
     const [recentActivity, setRecentActivity] = useState([]);
     const [attendanceData, setAttendanceData] = useState([]);
@@ -30,12 +30,12 @@ const DashboardOverview = () => {
     useEffect(() => {
         const fetchStats = async () => {
             try {
-                const [users, students, depts, courses, subjects, recent, weeklyAnalytics, subs, todaysFacAtt] = await Promise.all([
+                const [users, students, depts, programs, courses, recent, weeklyAnalytics, subs, todaysFacAtt] = await Promise.all([
                     fetchAllUsers(),
                     getAllStudents(),
                     getDepartments(),
+                    getPrograms(),
                     getCourses(),
-                    getSubjects(),
                     getRecentAttendanceActivity(5),
                     getWeeklyAttendanceAnalytics(),
                     getAllTodaysSubstitutions(new Date().toISOString().split('T')[0]),
@@ -46,15 +46,15 @@ const DashboardOverview = () => {
                     faculty: users.length,
                     students: students.length,
                     departments: depts.length,
-                    courses: courses.length
+                    programs: programs.length
                 });
 
                 // Process recent activity
                 const enrichedActivity = recent.map(r => {
-                    const subject = subjects.find(s => s.id === r.subjectId);
+                    const course = courses.find(s => s.id === r.courseId);
                     return {
                         ...r,
-                        resolvedSubjectName: r.subjectName || subject?.name || 'Unknown Subject',
+                        resolvedCourseName: r.courseName || course?.name || 'Unknown Course',
                         dateLabel: r.dateString
                     };
                 });
@@ -86,7 +86,7 @@ const DashboardOverview = () => {
         { title: 'Total Faculty', count: stats.faculty, icon: Users, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
         { title: 'Active Students', count: stats.students, icon: GraduationCap, color: '#10b981', bg: 'rgba(16, 185, 129, 0.15)' },
         { title: 'Departments', count: stats.departments, icon: Layers, color: '#8b5cf6', bg: 'rgba(139, 92, 246, 0.15)' },
-        { title: 'Courses', count: stats.courses, icon: Book, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
+        { title: 'Programs', count: stats.programs, icon: Book, color: '#f59e0b', bg: 'rgba(245, 158, 11, 0.15)' }
     ];
 
     const containerVariants = {
@@ -127,6 +127,7 @@ const DashboardOverview = () => {
             {/* Welcome Banner */}
             <motion.div
                 variants={itemVariants}
+                className="mobile-p-4"
                 style={{
                     background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.1))',
                     borderRadius: '1.5rem',
@@ -180,7 +181,7 @@ const DashboardOverview = () => {
             </motion.div>
 
             {/* Charts & Substitutions Row */}
-            <motion.div variants={itemVariants} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '1.5rem' }}>
+            <motion.div variants={itemVariants} style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 400px), 1fr))', gap: '1.5rem' }}>
                 {/* Attendance Chart */}
                 <div style={{
                     background: 'rgba(30, 41, 59, 0.7)',
@@ -189,10 +190,11 @@ const DashboardOverview = () => {
                     borderRadius: '1.25rem',
                     padding: '1.5rem',
                     boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+                    display: 'flex', flexDirection: 'column'
                 }}>
                     <h3 style={{ margin: '0 0 1rem 0', color: '#f8fafc', fontWeight: 600 }}>Weekly Attendance Trends</h3>
-                    <div style={{ width: '100%', height: 250 }}>
-                        <ResponsiveContainer>
+                    <div style={{ width: '100%', height: 250, minHeight: 250, flex: 1 }}>
+                        <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={attendanceData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                                 <defs>
                                     <linearGradient id="colorPercent" x1="0" y1="0" x2="0" y2="1">
@@ -236,7 +238,7 @@ const DashboardOverview = () => {
                             todaysSubstitutions.map((sub, idx) => (
                                 <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '1rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                        <strong style={{ color: '#e2e8f0' }}>{sub.subjectName}</strong>
+                                        <strong style={{ color: '#e2e8f0' }}>{sub.courseName}</strong>
                                         <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{sub.timeRange}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
@@ -380,7 +382,8 @@ const DashboardOverview = () => {
                                 style={{
                                     display: 'flex',
                                     justifyContent: 'space-between',
-                                    alignItems: 'center',
+                                    alignItems: 'flex-start',
+                                    gap: '1rem',
                                     padding: '1.25rem',
                                     background: 'rgba(255,255,255,0.03)',
                                     borderRadius: '1rem',
@@ -399,7 +402,7 @@ const DashboardOverview = () => {
                                             Attendance Filed
                                         </div>
                                         <div style={{ fontSize: '0.9rem', color: '#94a3b8', marginTop: '0.25rem' }}>
-                                            For <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{activity.resolvedSubjectName}</span>
+                                            For <span style={{ color: '#e2e8f0', fontWeight: 500 }}>{activity.resolvedCourseName}</span>
                                         </div>
                                     </div>
                                 </div>

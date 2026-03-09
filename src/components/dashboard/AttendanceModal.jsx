@@ -7,10 +7,10 @@ import { useAuth } from '../../context/AuthContext';
 import SmartAttendance from '../attendance/SmartAttendance';
 import Toast from '../common/Toast';
 
-const AttendanceModal = ({ isOpen, onClose, courses }) => {
+const AttendanceModal = ({ isOpen, onClose, programs }) => {
     const { user } = useAuth();
     const [step, setStep] = useState(1);
-    const [selectedCourse, setSelectedCourse] = useState(null);
+    const [selectedProgram, setSelectedProgram] = useState(null);
     const [mode, setMode] = useState(null); // 'voice', 'camera', or 'smart'
     const [aiConfidence, setAiConfidence] = useState(0);
 
@@ -23,13 +23,13 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
     // Reset state on open
     useEffect(() => {
         if (isOpen) {
-            if (courses && courses.length === 1 && courses[0].status === 'active') {
-                setSelectedCourse(courses[0]);
+            if (programs && programs.length === 1 && programs[0].status === 'active') {
+                setSelectedProgram(programs[0]);
                 setMode('smart');
                 setStep(3);
             } else {
                 setStep(1);
-                setSelectedCourse(null);
+                setSelectedProgram(null);
                 setMode(null);
             }
             setAiConfidence(0);
@@ -37,7 +37,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
             setOriginalFacultyId(null);
             setVerifying(false);
         }
-    }, [isOpen, courses]);
+    }, [isOpen, programs]);
 
     // Simulate AI Confidence Calculation
     useEffect(() => {
@@ -57,11 +57,11 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
 
     const handleNext = async () => {
         if (step === 1) {
-            // Verify Substitution if User is not the Regular faculty (Note: In this UI, 'courses' passed are usually assigned to user. 
-            // EXCEPT if we update FacultyCourses to optionally include substituted courses. 
+            // Verify Substitution if User is not the Regular faculty (Note: In this UI, 'programs' passed are usually assigned to user. 
+            // EXCEPT if we update FacultyPrograms to optionally include substituted programs. 
             // THE PLAN: We decided to verify here anyway for security or logic flow.
 
-            // Check if there is an active substitution for THIS course TODAY
+            // Check if there is an active substitution for THIS program TODAY
             // dateString = Today
             setVerifying(true);
             try {
@@ -72,7 +72,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                 const day = String(d.getDate()).padStart(2, '0');
                 const today = `${year}-${month}-${day}`;
 
-                const sub = await checkSubstitutionForAttendance(today, null, null, selectedCourse.subjectId);
+                const sub = await checkSubstitutionForAttendance(today, null, null, selectedProgram.courseId);
 
                 if (sub) {
                     if (sub.substituteFacultyId === user.uid) {
@@ -121,9 +121,11 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                 style={{
                     background: 'var(--color-surface)',
                     width: '600px',
-                    maxWidth: '90%',
+                    maxWidth: '95%',
+                    maxHeight: '90vh',
+                    overflowY: 'auto',
                     borderRadius: '1.5rem',
-                    padding: '2rem',
+                    padding: '1.5rem',
                     boxShadow: 'var(--shadow-lg)',
                     position: 'relative'
                 }}
@@ -167,9 +169,9 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                     {step === 1 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-secondary)' }}>
-                                Step 1: Select Course & Section
+                                Step 1: Select Program & Section
                             </h3>
-                            {courses.filter(c => c.status === 'active').length === 0 ? (
+                            {programs.filter(c => c.status === 'active').length === 0 ? (
                                 <div style={{
                                     padding: '1rem',
                                     background: 'rgba(239, 68, 68, 0.1)',
@@ -184,14 +186,14 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    {courses.filter(c => c.status === 'active').map(course => (
+                                    {programs.filter(c => c.status === 'active').map(program => (
                                         <button
-                                            key={course.id}
-                                            onClick={() => setSelectedCourse(course)}
+                                            key={program.id}
+                                            onClick={() => setSelectedProgram(program)}
                                             style={{
                                                 padding: '1rem',
-                                                border: selectedCourse?.id === course.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-                                                background: selectedCourse?.id === course.id ? 'var(--color-accent-light)' : 'transparent',
+                                                border: selectedProgram?.id === program.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                                background: selectedProgram?.id === program.id ? 'var(--color-accent-light)' : 'transparent',
                                                 borderRadius: '0.75rem',
                                                 textAlign: 'left',
                                                 cursor: 'pointer',
@@ -200,15 +202,15 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                         >
                                             <div style={{ display: 'flex', flexDirection: 'column' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{course.code}</span>
+                                                    <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{program.code}</span>
                                                     <span style={{ color: 'var(--color-text-muted)' }}>•</span>
                                                     <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>
-                                                        Period {course.periodIndex !== undefined ? course.periodIndex + 1 : '?'}
+                                                        Period {program.periodIndex !== undefined ? program.periodIndex + 1 : '?'}
                                                     </span>
                                                 </div>
-                                                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{course.name}</div>
+                                                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{program.name}</div>
                                                 <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', color: 'var(--color-secondary)' }}>
-                                                    Section {course.section}
+                                                    Section {program.section}
                                                 </div>
                                             </div>
                                         </button>
@@ -323,7 +325,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
 
                     {step === 3 && mode === 'smart' && (
                         <SmartAttendance
-                            course={selectedCourse}
+                            program={selectedProgram}
                             onClose={onClose}
                         />
                     )}
@@ -369,10 +371,10 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                 </div>
                                 <div>
                                     <div style={{ fontWeight: 600, fontSize: '0.875rem' }}>
-                                        Period {selectedCourse?.periodIndex !== undefined ? selectedCourse.periodIndex + 1 : '?'} • Ready
+                                        Period {selectedProgram?.periodIndex !== undefined ? selectedProgram.periodIndex + 1 : '?'} • Ready
                                     </div>
                                     <div style={{ fontSize: '0.75rem', color: 'var(--color-text-muted)' }}>
-                                        {selectedCourse?.code} - {selectedCourse?.name}
+                                        {selectedProgram?.code} - {selectedProgram?.name}
                                     </div>
                                 </div>
                             </div>
@@ -404,7 +406,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                     {step < 3 ? (
                         <button
                             onClick={handleNext}
-                            disabled={(step === 1 && !selectedCourse) || (step === 2 && !mode) || verifying}
+                            disabled={(step === 1 && !selectedProgram) || (step === 2 && !mode) || verifying}
                             style={{
                                 padding: '0.75rem 1.5rem',
                                 borderRadius: '0.5rem',
@@ -416,7 +418,7 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
-                                opacity: ((step === 1 && !selectedCourse) || (step === 2 && !mode) || verifying) ? 0.5 : 1
+                                opacity: ((step === 1 && !selectedProgram) || (step === 2 && !mode) || verifying) ? 0.5 : 1
                             }}
                         >
                             {verifying ? 'Verifying...' : <>Next <ArrowRight size={16} /></>}
@@ -424,13 +426,13 @@ const AttendanceModal = ({ isOpen, onClose, courses }) => {
                     ) : mode === 'smart' ? null : (
                         <button
                             onClick={async () => {
-                                if (selectedCourse) {
+                                if (selectedProgram) {
                                     try {
                                         await saveAttendanceSession({
-                                            subjectId: selectedCourse.subjectId,
-                                            semesterId: selectedCourse.semesterId,
-                                            subjectName: selectedCourse.name,
-                                            section: selectedCourse.section || 'N/A',
+                                            courseId: selectedProgram.courseId,
+                                            semesterId: selectedProgram.semesterId,
+                                            courseName: selectedProgram.name,
+                                            section: selectedProgram.section || 'N/A',
                                             mode: mode,
                                             confidence: aiConfidence,
                                             facultyId: user?.uid,

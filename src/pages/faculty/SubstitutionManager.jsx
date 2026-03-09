@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { UserCheck, Clock, Calendar, AlertCircle, Users, CheckCircle, ArrowRight } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getPendingSubstitutions, getPendingSubstitutionsForClass, allocateSubstitute } from '../../services/facultyService';
-import { getSubjects, getFacultyAssignmentsByFaculty, getAllStudents, getFacultyAssignments } from '../../services/academicService';
+import { getCourses, getFacultyAssignmentsByFaculty, getAllStudents, getFacultyAssignments } from '../../services/academicService';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
 import Toast from '../../components/common/Toast';
@@ -68,13 +68,13 @@ const SubstitutionManager = () => {
 
         try {
             // 1. Find potential substitutes: Faculty teaching in this semester
-            const qSubjects = query(collection(db, "subjects"), where("semesterId", "==", request.semesterId));
-            const subSnap = await getDocs(qSubjects);
-            const subjectIds = subSnap.docs.map(d => d.id);
+            const qCourses = query(collection(db, "courses"), where("semesterId", "==", request.semesterId));
+            const subSnap = await getDocs(qCourses);
+            const courseIds = subSnap.docs.map(d => d.id);
 
-            if (subjectIds.length > 0) {
+            if (courseIds.length > 0) {
                 const allAssignments = await getFacultyAssignments(); // Optimize this in prod!
-                const classAssignments = allAssignments.filter(a => subjectIds.includes(a.subjectId));
+                const classAssignments = allAssignments.filter(a => courseIds.includes(a.courseId));
                 const potentialFacultyIds = [...new Set(classAssignments.map(a => a.facultyId))];
 
                 // 2. Identify Unavailable Faculty
@@ -131,7 +131,7 @@ const SubstitutionManager = () => {
             await allocateSubstitute(selectedRequest.id, {
                 date: selectedRequest.date,
                 slotTime: selectedRequest.slotTime,
-                subjectId: selectedRequest.subjectId,
+                courseId: selectedRequest.courseId,
                 originalFacultyId: selectedRequest.originalFacultyId,
                 substituteFacultyId: selectedFacultyId,
                 semesterId: selectedRequest.semesterId
@@ -225,7 +225,7 @@ const SubstitutionManager = () => {
                                             {req.slotTime.split(' - ')[0]}
                                         </span>
                                         <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'white', margin: 0 }}>
-                                            {req.subjectName || 'Unknown Subject'}
+                                            {req.courseName || 'Unknown Course'}
                                         </h3>
                                     </div>
                                     <p style={{ margin: 0, color: '#94a3b8', fontSize: '0.9rem' }}>
@@ -262,7 +262,7 @@ const SubstitutionManager = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', fontSize: '0.9rem' }}>
                                 <div>
                                     <p style={{ color: '#94a3b8', margin: '0 0 0.25rem 0' }}>Class</p>
-                                    <p style={{ color: 'white', margin: 0, fontWeight: 500 }}>{selectedRequest.subjectName}</p>
+                                    <p style={{ color: 'white', margin: 0, fontWeight: 500 }}>{selectedRequest.courseName}</p>
                                 </div>
                                 <div>
                                     <p style={{ color: '#94a3b8', margin: '0 0 0.25rem 0' }}>Time Slot</p>

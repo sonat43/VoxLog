@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Calendar, Layers, Clock, ArrowLeft, Search, Filter } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getSemesters } from '../../services/academicService';
+import { getSemesters, getDepartments, getPrograms } from '../../services/academicService';
 import { getTimetable } from '../../services/timetableService';
 import { getSubstitutionsForClass } from '../../services/substitutionService';
 import { useAuth } from '../../context/AuthContext';
@@ -10,7 +10,12 @@ import { useAuth } from '../../context/AuthContext';
 const FacultyTimetables = () => {
     const navigate = useNavigate();
     const { user } = useAuth();
+    const [departments, setDepartments] = useState([]);
+    const [programs, setPrograms] = useState([]);
     const [semesters, setSemesters] = useState([]);
+
+    const [selectedDepartment, setSelectedDepartment] = useState('');
+    const [selectedProgram, setSelectedProgram] = useState('');
     const [selectedSemester, setSelectedSemester] = useState('');
 
     // Initialize with local date
@@ -23,19 +28,47 @@ const FacultyTimetables = () => {
     const [timetable, setTimetable] = useState([]);
     const [loading, setLoading] = useState(true);
 
-    // Fetch Semesters on Mount
+    // Fetch initial data
     useEffect(() => {
-        const fetchSemesters = async () => {
+        const fetchInitialData = async () => {
             try {
+                const depts = await getDepartments();
+                const progs = await getPrograms();
                 const sems = await getSemesters();
+
+                setDepartments(depts);
+                setPrograms(progs);
                 setSemesters(sems);
-                if (sems.length > 0) setSelectedSemester(sems[0].id);
+
+                if (depts.length > 0) setSelectedDepartment(depts[0].id);
             } catch (error) {
-                console.error("Error fetching semesters:", error);
+                console.error("Error fetching academic hierarchy:", error);
             }
         };
-        fetchSemesters();
+        fetchInitialData();
     }, []);
+
+    // Filter logic
+    const filteredPrograms = programs.filter(p => p.departmentId === selectedDepartment);
+    const filteredSemesters = semesters.filter(s => s.programId === selectedProgram);
+
+    // Auto-select first items when parents change
+    useEffect(() => {
+        if (filteredPrograms.length > 0 && !filteredPrograms.find(p => p.id === selectedProgram)) {
+            setSelectedProgram(filteredPrograms[0].id);
+        } else if (filteredPrograms.length === 0) {
+            setSelectedProgram('');
+        }
+    }, [selectedDepartment, filteredPrograms]);
+
+    useEffect(() => {
+        if (filteredSemesters.length > 0 && !filteredSemesters.find(s => s.id === selectedSemester)) {
+            setSelectedSemester(filteredSemesters[0].id);
+        } else if (filteredSemesters.length === 0) {
+            setSelectedSemester('');
+            setTimetable([]); // Clear timetable if no semester selected
+        }
+    }, [selectedProgram, filteredSemesters]);
 
     // Fetch Timetable & Substitutions when selection changes
     useEffect(() => {
@@ -81,7 +114,7 @@ const FacultyTimetables = () => {
                             substituteName: sub.substituteName || 'Assigned Faculty',
                             originalFacultyName: sub.originalFacultyName,
                             displayStatus: 'Substituted',
-                            subjectname: sub.subjectName || slot.subjectname // In case subject changed? Usually same subject, diff faculty.
+                            coursename: sub.courseName || slot.coursename // In case course changed? Usually same course, diff faculty.
                         };
                     }
                     return slot;
@@ -94,7 +127,7 @@ const FacultyTimetables = () => {
                         mergedSlots.push({
                             periodIndex: sub.periodIndex,
                             timeRange: sub.timeRange,
-                            subjectname: sub.subjectName,
+                            coursename: sub.courseName,
                             type: 'Substitution',
                             displayStatus: 'Extra Session',
                             substituteName: sub.substituteName,
@@ -143,20 +176,68 @@ const FacultyTimetables = () => {
                 marginBottom: '2rem', border: '1px solid rgba(255,255,255,0.05)',
                 display: 'flex', gap: '2rem', flexWrap: 'wrap', alignItems: 'end'
             }}>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '200px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '150px' }}>
                     <label style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        <Layers size={16} /> Select Semester
+                        <Layers size={16} /> Select Department
                     </label>
                     <select
-                        value={selectedSemester}
-                        onChange={(e) => setSelectedSemester(e.target.value)}
+                        value={selectedDepartment}
+                        onChange={(e) => setSelectedDepartment(e.target.value)}
                         style={{
                             padding: '0.75rem', borderRadius: '0.5rem',
                             background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.1)',
                             color: 'white', outline: 'none'
                         }}
                     >
-                        {semesters.map(sem => (
+                        {departments.map(dept => (
+                            <option key={dept.id} value={dept.id}>
+                                {dept.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '150px' }}>
+                    <label style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Layers size={16} /> Select Program
+                    </label>
+                    <select
+                        value={selectedProgram}
+                        onChange={(e) => setSelectedProgram(e.target.value)}
+                        disabled={!selectedDepartment || filteredPrograms.length === 0}
+                        style={{
+                            padding: '0.75rem', borderRadius: '0.5rem',
+                            background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: 'white', outline: 'none',
+                            opacity: (!selectedDepartment || filteredPrograms.length === 0) ? 0.5 : 1
+                        }}
+                    >
+                        {filteredPrograms.length === 0 && <option value="">No Programs Found</option>}
+                        {filteredPrograms.map(prog => (
+                            <option key={prog.id} value={prog.id}>
+                                {prog.name}
+                            </option>
+                        ))}
+                    </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '150px' }}>
+                    <label style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <Layers size={16} /> Select Semester
+                    </label>
+                    <select
+                        value={selectedSemester}
+                        onChange={(e) => setSelectedSemester(e.target.value)}
+                        disabled={!selectedProgram || filteredSemesters.length === 0}
+                        style={{
+                            padding: '0.75rem', borderRadius: '0.5rem',
+                            background: 'rgba(15, 23, 42, 0.6)', border: '1px solid rgba(255,255,255,0.1)',
+                            color: 'white', outline: 'none',
+                            opacity: (!selectedProgram || filteredSemesters.length === 0) ? 0.5 : 1
+                        }}
+                    >
+                        {filteredSemesters.length === 0 && <option value="">No Semesters Found</option>}
+                        {filteredSemesters.map(sem => (
                             <option key={sem.id} value={sem.id}>
                                 Semester {sem.semesterNo}
                             </option>
@@ -164,7 +245,7 @@ const FacultyTimetables = () => {
                     </select>
                 </div>
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '200px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1, minWidth: '150px' }}>
                     <label style={{ fontSize: '0.9rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         <Calendar size={16} /> Select Date
                     </label>
@@ -228,10 +309,10 @@ const FacultyTimetables = () => {
                                     </div>
                                 </div>
 
-                                {/* Subject Info */}
+                                {/* Course Info */}
                                 <div>
                                     <h3 style={{ margin: 0, fontSize: '1.2rem', color: '#f8fafc', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        {slot.subjectname}
+                                        {slot.coursename}
                                         {slot.type === 'Substitution' && (
                                             <span style={{
                                                 fontSize: '0.75rem', background: '#f59e0b', color: 'white',

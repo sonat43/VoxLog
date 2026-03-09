@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getDepartments, getCourses, getSemesters, getSubjects } from '../../../services/academicService';
+import { getDepartments, getPrograms, getSemesters, getCourses } from '../../../services/academicService';
 import { saveTimetable, getTimetable } from '../../../services/timetableService';
 import Toast from '../../../components/common/Toast';
 import { Calendar, Save, Trash2, Clock, X, Plus } from 'lucide-react';
@@ -7,14 +7,14 @@ import { Calendar, Save, Trash2, Clock, X, Plus } from 'lucide-react';
 const Timetable = () => {
     // Filters
     const [departments, setDepartments] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [programs, setPrograms] = useState([]);
     const [semesters, setSemesters] = useState([]);
     const [selectedDept, setSelectedDept] = useState('');
-    const [selectedCourse, setSelectedCourse] = useState('');
+    const [selectedProgram, setSelectedProgram] = useState('');
     const [selectedSemester, setSelectedSemester] = useState('');
 
     // Data
-    const [subjects, setSubjects] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [schedule, setSchedule] = useState({}); // { Monday: [slot1, slot2...], ... }
     const [loading, setLoading] = useState(false);
     const [toast, setToast] = useState(null);
@@ -35,8 +35,8 @@ const Timetable = () => {
         { start: '15:15', end: '16:00' }
     ];
 
-    // Auxiliary subjects for manual entry
-    const auxSubjects = [
+    // Auxiliary courses for manual entry
+    const auxCourses = [
         { id: 'lib', name: 'Library' },
         { id: 'sports', name: 'Sports' },
         { id: 'seminar', name: 'Seminar' }
@@ -49,9 +49,9 @@ const Timetable = () => {
 
     const loadFilters = async () => {
         try {
-            const [d, c, s] = await Promise.all([getDepartments(), getCourses(), getSemesters()]);
+            const [d, c, s] = await Promise.all([getDepartments(), getPrograms(), getSemesters()]);
             setDepartments(d);
-            setCourses(c);
+            setPrograms(c);
             setSemesters(s);
         } catch (error) {
             console.error(error);
@@ -64,16 +64,16 @@ const Timetable = () => {
             fetchData();
         } else {
             setSchedule({});
-            setSubjects([]);
+            setCourses([]);
         }
     }, [selectedSemester]);
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const allSubs = await getSubjects();
+            const allSubs = await getCourses();
             const semSubs = allSubs.filter(sub => sub.semesterId === selectedSemester);
-            setSubjects(semSubs);
+            setCourses(semSubs);
 
             const existing = await getTimetable(selectedSemester);
             if (existing) {
@@ -97,8 +97,8 @@ const Timetable = () => {
         setIsOpen(true);
     };
 
-    // Assign Subject to Slot
-    const handleAssignSubject = (subject) => {
+    // Assign Course to Slot
+    const handleAssignCourse = (course) => {
         const { day, periodIndex } = editingSlot;
 
         const daySchedule = schedule[day] ? [...schedule[day]] : [];
@@ -110,8 +110,8 @@ const Timetable = () => {
         filtered.push({
             periodIndex,
             timeRange: `${periods[periodIndex].start} - ${periods[periodIndex].end}`,
-            subjectId: subject.id,
-            subjectname: subject.name,
+            courseId: course.id,
+            coursename: course.name,
             facultyId: null // Future: Allow selecting faculty
         });
 
@@ -151,8 +151,8 @@ const Timetable = () => {
 
     // --- Render Helpers ---
 
-    const filteredCourses = courses.filter(c => c.departmentId === selectedDept);
-    const filteredSemesters = semesters.filter(s => s.courseId === selectedCourse);
+    const filteredPrograms = programs.filter(c => c.departmentId === selectedDept);
+    const filteredSemesters = semesters.filter(s => s.programId === selectedProgram);
 
     return (
         <div style={{ padding: '2rem', position: 'relative' }}>
@@ -160,7 +160,7 @@ const Timetable = () => {
             <div style={{ marginBottom: '2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                     <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', margin: '0 0 0.5rem 0', color: 'white' }}>Class Timetable</h1>
-                    <p style={{ color: '#9ca3af', margin: 0 }}>Manually assign subjects to weekly slots.</p>
+                    <p style={{ color: '#9ca3af', margin: 0 }}>Manually assign courses to weekly slots.</p>
                 </div>
                 {selectedSemester && (
                     <div style={{ display: 'flex', gap: '1rem' }}>
@@ -178,21 +178,21 @@ const Timetable = () => {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px', background: '#1e293b', padding: '20px', borderRadius: '16px', border: '1px solid rgba(255,255,255,0.05)' }}>
                 <div>
                     <label style={labelStyle}>Department</label>
-                    <select value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedCourse(''); setSelectedSemester(''); }} style={selectStyle}>
+                    <select value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedProgram(''); setSelectedSemester(''); }} style={selectStyle}>
                         <option value="">Select Department...</option>
                         {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                 </div>
                 <div>
-                    <label style={labelStyle}>Course</label>
-                    <select value={selectedCourse} onChange={(e) => { setSelectedCourse(e.target.value); setSelectedSemester(''); }} style={selectStyle} disabled={!selectedDept}>
-                        <option value="">Select Course...</option>
-                        {filteredCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                    <label style={labelStyle}>Program</label>
+                    <select value={selectedProgram} onChange={(e) => { setSelectedProgram(e.target.value); setSelectedSemester(''); }} style={selectStyle} disabled={!selectedDept}>
+                        <option value="">Select Program...</option>
+                        {filteredPrograms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>
                     <label style={labelStyle}>Semester</label>
-                    <select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)} style={selectStyle} disabled={!selectedCourse}>
+                    <select value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)} style={selectStyle} disabled={!selectedProgram}>
                         <option value="">Select Semester...</option>
                         {filteredSemesters.map(s => <option key={s.id} value={s.id}>Semester {s.semesterNo}</option>)}
                     </select>
@@ -236,7 +236,7 @@ const Timetable = () => {
                                             >
                                                 {slot ? (
                                                     <div style={{ background: 'rgba(20, 184, 166, 0.1)', border: '1px solid rgba(20, 184, 166, 0.2)', padding: '8px', borderRadius: '6px', textAlign: 'center' }}>
-                                                        <div style={{ fontWeight: 600, color: '#2dd4bf', fontSize: '0.85rem' }}>{slot.subjectname}</div>
+                                                        <div style={{ fontWeight: 600, color: '#2dd4bf', fontSize: '0.85rem' }}>{slot.coursename}</div>
                                                     </div>
                                                 ) : (
                                                     <div style={{
@@ -269,28 +269,28 @@ const Timetable = () => {
                         overflow: 'hidden'
                     }}>
                         <div style={{ padding: '16px', borderBottom: '1px solid rgba(255,255,255,0.05)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h3 style={{ margin: 0, color: 'white', fontSize: '1.1rem' }}>Assign Subject</h3>
+                            <h3 style={{ margin: 0, color: 'white', fontSize: '1.1rem' }}>Assign Course</h3>
                             <button onClick={() => setIsOpen(false)} style={{ background: 'none', border: 'none', color: '#9ca3af', cursor: 'pointer' }}><X size={20} /></button>
                         </div>
                         <div style={{ padding: '16px' }}>
                             <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '16px' }}>
-                                Select a subject for <strong>{editingSlot?.day}</strong> at <strong>{periods[editingSlot?.periodIndex].start}</strong>
+                                Select a course for <strong>{editingSlot?.day}</strong> at <strong>{periods[editingSlot?.periodIndex].start}</strong>
                             </p>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>
-                                {subjects.map(sub => (
+                                {courses.map(sub => (
                                     <button
                                         key={sub.id}
-                                        onClick={() => handleAssignSubject(sub)}
+                                        onClick={() => handleAssignCourse(sub)}
                                         style={optionBtnStyle}
                                     >
                                         {sub.name}
                                     </button>
                                 ))}
-                                {auxSubjects.map(sub => (
+                                {auxCourses.map(sub => (
                                     <button
                                         key={sub.id}
-                                        onClick={() => handleAssignSubject(sub)}
+                                        onClick={() => handleAssignCourse(sub)}
                                         style={{ ...optionBtnStyle, background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)' }}
                                     >
                                         {sub.name}

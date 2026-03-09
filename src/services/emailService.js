@@ -13,10 +13,10 @@ const EMAILJS_PUBLIC_KEY = 'MUar2bHp5w1Y9ZlTQ';   // Please provide this (e.g., 
  * Uses EmailJS for real delivery if configured, otherwise falls back to simulation.
  * 
  * @param {string} toEmail - Recipient email
- * @param {string} subject - Email subject
+ * @param {string} course - Email course
  * @param {string} htmlBody - Email body (HTML supported)
  */
-export const sendEmailNotification = async (toEmail, subject, htmlBody) => {
+export const sendEmailNotification = async (toEmail, course, htmlBody) => {
     try {
         console.log(`[📧 EMAIL] Attempting to send to: ${toEmail}`);
 
@@ -24,7 +24,7 @@ export const sendEmailNotification = async (toEmail, subject, htmlBody) => {
         await addDoc(collection(db, "mail_queue"), {
             to: toEmail,
             message: {
-                subject: subject,
+                course: course,
                 html: htmlBody,
             },
             status: 'sent_via_emailjs',
@@ -35,7 +35,7 @@ export const sendEmailNotification = async (toEmail, subject, htmlBody) => {
         if (EMAILJS_SERVICE_ID !== 'YOUR_SERVICE_ID') {
             const templateParams = {
                 to_email: toEmail,
-                subject: subject,
+                course: course,
                 // We send both keys to be safe, so it works with either {{message}} or {{message_html}}
                 message: htmlBody,
                 message_html: htmlBody
@@ -59,7 +59,7 @@ export const sendEmailNotification = async (toEmail, subject, htmlBody) => {
  * 
  * @param {string} parentEmail - The parent's email address
  * @param {object} studentInfo - Basic student info { name, regNo }
- * @param {Array} attendanceRecords - Array of attendance records for the day { subjectName, status, slotTime }
+ * @param {Array} attendanceRecords - Array of attendance records for the day { courseName, status, slotTime }
  * @param {string} dateString - The date of the report
  */
 export const sendDailyParentReport = async (parentEmail, studentInfo, attendanceRecords, dateString) => {
@@ -68,7 +68,7 @@ export const sendDailyParentReport = async (parentEmail, studentInfo, attendance
         return { success: false, error: "No parent email" };
     }
 
-    const subject = `Daily Attendance Report: ${studentInfo.name} - ${dateString}`;
+    const course = `Daily Attendance Report: ${studentInfo.name} - ${dateString}`;
 
     const totalClasses = attendanceRecords.length;
     const classesAttended = attendanceRecords.filter(r => r.status === 'Present').length;
@@ -93,7 +93,7 @@ export const sendDailyParentReport = async (parentEmail, studentInfo, attendance
                 <td style="padding: 16px; border-bottom: 1px solid #f1f5f9; display: flex; align-items: center; gap: 12px;">
                     ${iconSvg}
                     <div>
-                        <div style="color: #1e293b; font-weight: 600; font-size: 15px;">${record.subjectName}</div>
+                        <div style="color: #1e293b; font-weight: 600; font-size: 15px;">${record.courseName}</div>
                         <div style="color: #64748b; font-size: 13px; margin-top: 4px;">${record.slotTime || 'Scheduled Slot'}</div>
                     </div>
                 </td>
@@ -179,6 +179,6 @@ export const sendDailyParentReport = async (parentEmail, studentInfo, attendance
         </html>
     `;
 
-    return await sendEmailNotification(parentEmail, subject, htmlBody);
+    return await sendEmailNotification(parentEmail, course, htmlBody);
 };
 

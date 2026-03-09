@@ -78,6 +78,18 @@ const UserProfile = () => {
         setErrors({});
     }, [user, role]);
 
+    const calculateAge = (birthDate) => {
+        if (!birthDate) return 0;
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
     const validateField = (name, value) => {
         let error = "";
         const requiredFields = [
@@ -89,6 +101,13 @@ const UserProfile = () => {
         if (requiredFields.includes(name)) {
             if (!value || value.toString().trim() === '') {
                 error = "Field required";
+            }
+        }
+
+        if (name === 'dateOfBirth' && value) {
+            const age = calculateAge(value);
+            if (age < 26) {
+                error = "Faculty/Staff must be at least 26 years old.";
             }
         }
 

@@ -2,8 +2,8 @@ import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
 import {
-    getDepartments, getCourses, getSemesters,
-    addStudent, getStudentsBySemester, deleteStudent, updateStudent, getAllStudents
+    getDepartments, getPrograms, getSemesters,
+    addStudent, deleteStudent, updateStudent, getAllStudents, getStudentsBySemester
 } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 import { Users, GraduationCap, BookOpen, UserPlus, AlertCircle, Edit, Upload } from 'lucide-react';
@@ -11,11 +11,11 @@ import { Users, GraduationCap, BookOpen, UserPlus, AlertCircle, Edit, Upload } f
 const Students = () => {
     // 1. Filter State
     const [departments, setDepartments] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [programs, setPrograms] = useState([]);
     const [semesters, setSemesters] = useState([]);
 
     const [selectedDept, setSelectedDept] = useState('');
-    const [selectedCourse, setSelectedCourse] = useState('');
+    const [selectedProgram, setSelectedProgram] = useState('');
     const [selectedSemester, setSelectedSemester] = useState('');
 
     // 2. Data State
@@ -33,11 +33,31 @@ const Students = () => {
     const [bulkLogs, setBulkLogs] = useState([]);
     const [editingId, setEditingId] = useState(null);
 
+    const calculateAge = (birthDate) => {
+        if (!birthDate) return 0;
+        const today = new Date();
+        const birth = new Date(birthDate);
+        let age = today.getFullYear() - birth.getFullYear();
+        const m = today.getMonth() - birth.getMonth();
+        if (m < 0 || (m === 0 && today.getDate() < birth.getDate())) {
+            age--;
+        }
+        return age;
+    };
+
     const validateField = (name, value) => {
         let error = "";
         if (!value || value.toString().trim() === '') {
             error = "Field required";
         }
+
+        if (name === 'dob' && value) {
+            const age = calculateAge(value);
+            if (age < 18) {
+                error = "Student must be at least 18 years old.";
+            }
+        }
+
         if (name === 'email' && value) {
             if (!/\S+@\S+\.\S+/.test(value)) {
                 error = "Invalid email format";
@@ -85,9 +105,9 @@ const Students = () => {
 
     const loadFilters = async () => {
         try {
-            const [d, c, s] = await Promise.all([getDepartments(), getCourses(), getSemesters()]);
+            const [d, c, s] = await Promise.all([getDepartments(), getPrograms(), getSemesters()]);
             setDepartments(d);
-            setCourses(c);
+            setPrograms(c);
             setSemesters(s);
         } catch (error) {
             console.error(error);
@@ -96,20 +116,8 @@ const Students = () => {
 
     // Auto-fetch when semester selection changes (specific) or filters cleared
     useEffect(() => {
-        if (selectedSemester) {
-            fetchStudents(selectedSemester);
-        } else if (!selectedDept && !selectedCourse) {
-            // If filters cleared completely, fetch all
-            fetchStudents(null);
-        } else {
-            // Intermediate state (e.g. only Dept selected) -> maybe clear or keep previous? 
-            // Better to just clear list or wait for Sem selection?
-            // User asked for "when no department... show whole".
-            if (!selectedDept && !selectedCourse && !selectedSemester) {
-                fetchStudents(null);
-            }
-        }
-    }, [selectedDept, selectedCourse, selectedSemester]);
+        fetchStudents();
+    }, [selectedDept, selectedProgram, selectedSemester]);
 
     // --- Auto-Select Logic ---
     useEffect(() => {
@@ -119,41 +127,49 @@ const Students = () => {
     }, [departments, selectedDept]);
 
     useEffect(() => {
-        if (selectedDept && courses.length > 0) {
-            const relevantCourses = courses.filter(c => c.departmentId === selectedDept);
-            if (relevantCourses.length === 1 && !selectedCourse) {
-                setSelectedCourse(relevantCourses[0].id);
+        if (selectedDept && programs.length > 0) {
+            const relevantPrograms = programs.filter(c => c.departmentId === selectedDept);
+            if (relevantPrograms.length === 1 && !selectedProgram) {
+                setSelectedProgram(relevantPrograms[0].id);
             }
         }
-    }, [selectedDept, courses, selectedCourse]);
+    }, [selectedDept, programs, selectedProgram]);
 
     useEffect(() => {
-        if (selectedCourse && semesters.length > 0) {
-            const relevantSems = semesters.filter(s => s.courseId === selectedCourse);
+        if (selectedProgram && semesters.length > 0) {
+            const relevantSems = semesters.filter(s => s.programId === selectedProgram);
             if (relevantSems.length === 1 && !selectedSemester) {
                 setSelectedSemester(relevantSems[0].id);
             }
         }
-    }, [selectedCourse, semesters, selectedSemester]);
+    }, [selectedProgram, semesters, selectedSemester]);
 
-    const fetchStudents = async (semesterId = null) => {
+    const fetchStudents = async () => {
         setLoading(true);
         try {
             let list = [];
-            if (semesterId) {
-                // Filtered View
-                list = await getStudentsBySemester(semesterId);
 
+            if (selectedSemester) {
+                list = await getStudentsBySemester(selectedSemester);
                 // Calculate capacity
-                const sem = semesters.find(s => s.id === semesterId);
-                // If semesters not loaded yet, try finding later or ignore
+                const sem = semesters.find(s => s.id === selectedSemester);
                 if (sem) {
                     setCurrentCapacity({ enrolled: list.length, total: sem.studentCount || 0 });
                 }
             } else {
-                // All Students View
                 list = await getAllStudents();
                 setCurrentCapacity({ enrolled: 0, total: 0 }); // No specific capacity in global view
+
+                // Filter locally using the hierarchy because older DB records only have semesterId
+                let validSemIds = semesters.map(s => s.id);
+                if (selectedProgram) {
+                    validSemIds = semesters.filter(s => s.programId === selectedProgram).map(s => s.id);
+                } else if (selectedDept) {
+                    const deptPrograms = programs.filter(p => p.departmentId === selectedDept).map(p => p.id);
+                    validSemIds = semesters.filter(s => deptPrograms.includes(s.programId)).map(s => s.id);
+                }
+
+                list = list.filter(student => validSemIds.includes(student.semesterId));
             }
 
             // Sort automatically by name (Alphabetical Order)
@@ -193,7 +209,7 @@ const Students = () => {
                 await addStudent({
                     ...formData,
                     semesterId: selectedSemester,
-                    courseId: selectedCourse,
+                    programId: selectedProgram,
                     departmentId: selectedDept
                 });
                 setToast({ message: "Student enrolled successfully!", type: 'success' });
@@ -203,7 +219,7 @@ const Students = () => {
             setEditingId(null);
             setFormData({ name: '', regNo: '', email: '', parentEmail: '', dob: '' });
             // Refresh with current view logic
-            fetchStudents(selectedSemester);
+            fetchStudents();
         } catch (error) {
             setToast({ message: error.message, type: 'error' });
         }
@@ -220,7 +236,7 @@ const Students = () => {
             try {
                 await deleteStudent(id);
                 setToast({ message: "Student removed.", type: 'success' });
-                fetchStudents(selectedSemester);
+                fetchStudents();
             } catch (error) {
                 setToast({ message: "Failed to delete.", type: 'error' });
             }
@@ -250,14 +266,16 @@ const Students = () => {
 
             const [name, regNo, email, parentEmail, dob] = parts;
             try {
-                // Check local capacity first to fail fast? 
-                // Service checks capacity properly but we are in a loop.
-                // We'll let service handle individual errors.
+                // DOB Age Validation for Bulk
+                const age = calculateAge(dob);
+                if (age < 18) {
+                    throw new Error("Student must be at least 18 years old.");
+                }
 
                 await addStudent({
                     name, regNo, email, parentEmail, dob,
                     semesterId: selectedSemester,
-                    courseId: selectedCourse,
+                    programId: selectedProgram,
                     departmentId: selectedDept
                 });
                 logs.push({ status: 'success', msg: `Added: ${name}` });
@@ -271,7 +289,7 @@ const Students = () => {
 
         if (successCount > 0) {
             setToast({ message: `Successfully enrolled ${successCount} students.`, type: 'success' });
-            fetchStudents(selectedSemester);
+            fetchStudents();
             // Don't close immediately so user can see logs
         }
     };
@@ -284,8 +302,8 @@ const Students = () => {
 
     // --- Render Helpers ---
 
-    const filteredCourses = courses.filter(c => c.departmentId === selectedDept);
-    const filteredSemesters = semesters.filter(s => s.courseId === selectedCourse);
+    const filteredPrograms = programs.filter(c => c.departmentId === selectedDept);
+    const filteredSemesters = semesters.filter(s => s.programId === selectedProgram);
 
     const getCapacityColor = () => {
         const ratio = currentCapacity.enrolled / (currentCapacity.total || 1);
@@ -331,7 +349,7 @@ const Students = () => {
                 <div>
                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '8px' }}>Department</label>
                     <select
-                        value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedCourse(''); setSelectedSemester(''); }}
+                        value={selectedDept} onChange={(e) => { setSelectedDept(e.target.value); setSelectedProgram(''); setSelectedSemester(''); }}
                         style={filterSelectStyle}
                     >
                         <option value="">All Departments</option>
@@ -339,14 +357,14 @@ const Students = () => {
                     </select>
                 </div>
                 <div>
-                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '8px' }}>Course</label>
+                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.8rem', marginBottom: '8px' }}>Program</label>
                     <select
-                        value={selectedCourse} onChange={(e) => { setSelectedCourse(e.target.value); setSelectedSemester(''); }}
+                        value={selectedProgram} onChange={(e) => { setSelectedProgram(e.target.value); setSelectedSemester(''); }}
                         style={filterSelectStyle}
                         disabled={!selectedDept}
                     >
-                        <option value="">All Courses</option>
-                        {filteredCourses.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        <option value="">All Programs</option>
+                        {filteredPrograms.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
                     </select>
                 </div>
                 <div>
@@ -354,7 +372,7 @@ const Students = () => {
                     <select
                         value={selectedSemester} onChange={(e) => setSelectedSemester(e.target.value)}
                         style={filterSelectStyle}
-                        disabled={!selectedCourse}
+                        disabled={!selectedProgram}
                     >
                         <option value="">All Semesters</option>
                         {filteredSemesters.map(s => <option key={s.id} value={s.id}>Semester {s.semesterNo}</option>)}

@@ -30,9 +30,9 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
 
         // Structure
         { path: '/admin-dashboard/departments', icon: Layers, label: 'Departments' },
-        { path: '/admin-dashboard/academic-courses', icon: Book, label: 'Courses' },
+        { path: '/admin-dashboard/courses', icon: Book, label: 'Courses' },
         { path: '/admin-dashboard/semesters', icon: Calendar, label: 'Semesters' },
-        { path: '/admin-dashboard/subjects', icon: Library, label: 'Subjects' },
+        { path: '/admin-dashboard/programs', icon: Library, label: 'Programs' },
 
         // Scheduling
         { path: '/admin-dashboard/assignments', icon: UserCheck, label: 'Faculty Assignment' },
@@ -43,8 +43,8 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
         { path: '/admin-dashboard/attendance-records', icon: FileText, label: 'Student Attendance' },
         { path: '/admin-dashboard/faculty-attendance', icon: UserCheck, label: 'Faculty Attendance' },
         { path: '/admin-dashboard/leaves', icon: layers_sub_icon, label: 'Leave Approvals' },
-        { path: '/admin-dashboard/substitutions', icon: UserCheck, label: 'Substitutions' },
-        { path: '/admin-dashboard/master-calendar', icon: Calendar, label: 'Master Calendar' },
+        { path: '/admin-dashboard/academic-calendar', icon: Calendar, label: 'Academic Calendar' },
+        { path: '/admin-dashboard/master-calendar', icon: Calendar, label: 'Attendance Master' },
 
 
         // Settings
@@ -52,7 +52,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
     ];
 
     return (
-        <aside style={{
+        <aside className={`sidebar-wrapper ${isOpen ? 'open' : ''}`} style={{
             width: isOpen ? '260px' : '70px',
             backgroundColor: '#111827',
             borderRight: '1px solid rgba(255, 255, 255, 0.1)',
@@ -61,7 +61,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
             position: 'fixed',
             left: 0,
             top: 0,
-            zIndex: 40,
+            zIndex: 60,
             display: 'flex',
             flexDirection: 'column'
         }}>
@@ -111,19 +111,22 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                                 overflow: 'hidden'
                             })}
                         >
-                            <item.icon size={20} color={isOpen ? undefined : (isActive ? '#14b8a6' : '#9ca3af')} />
-                            {isOpen && (
-                                <span style={{ marginLeft: '1rem', fontSize: '0.9rem', fontWeight: 500 }}>
-                                    {item.label}
-                                </span>
+                            {({ isActive }) => (
+                                <>
+                                    <item.icon size={20} color={isOpen ? undefined : (isActive ? '#14b8a6' : '#9ca3af')} />
+                                    {isOpen && (
+                                        <span style={{ marginLeft: '1rem', fontSize: '0.9rem', fontWeight: 500 }}>
+                                            {item.label}
+                                        </span>
+                                    )}
+                                </>
                             )}
                         </NavLink>
                     ))}
                 </div>
             </nav>
 
-            {/* Collapse Toggle */}
-            <div style={{
+            <div className="show-on-mobile" style={{
                 padding: '1rem',
                 borderTop: '1px solid rgba(255, 255, 255, 0.05)',
                 display: 'flex',

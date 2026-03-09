@@ -6,7 +6,7 @@ import FacultyDashboard from './pages/FacultyDashboard';
 import LoadingScreen from './components/LoadingScreen';
 import FeaturePlaceholder from './components/FeaturePlaceholder';
 import UserProfile from './pages/UserProfile';
-import FacultyCourses from './pages/faculty/FacultyCourses';
+import FacultyPrograms from './pages/faculty/FacultyPrograms';
 import FacultyReports from './pages/faculty/Reports';
 import AcademicProgress from './pages/faculty/AcademicProgress';
 import Gradebook from './pages/faculty/Gradebook';
@@ -24,7 +24,7 @@ import UserManagement from './pages/admin/UserManagement';
 import Departments from './pages/admin/academic/Departments';
 import Courses from './pages/admin/academic/Courses';
 import Semesters from './pages/admin/academic/Semesters';
-import Subjects from './pages/admin/academic/Subjects';
+import Programs from './pages/admin/academic/Programs';
 import FacultyAssignments from './pages/admin/academic/FacultyAssignments';
 import SettingsConfig from './pages/admin/SettingsConfig';
 import Seeder from './pages/admin/academic/Seeder';
@@ -35,6 +35,8 @@ import AttendanceRecords from './pages/admin/academic/AttendanceRecords';
 import ManualAttendance from './pages/admin/academic/ManualAttendance';
 import LeaveApproval from './pages/admin/LeaveApproval';
 import MasterAttendanceCalendar from './pages/admin/MasterAttendanceCalendar';
+import SchoolCalendar from './pages/admin/SchoolCalendar';
+import ViewCalendar from './pages/faculty/ViewCalendar';
 import AdminFacultyAttendance from './pages/admin/AdminFacultyAttendance';
 import LeaveManagement from './pages/faculty/LeaveManagement';
 import SubstitutionPage from './pages/faculty/SubstitutionPage';
@@ -80,9 +82,9 @@ function App() {
             <Route path="users" element={<UserManagement />} />
             {/* Academic Management Routes */}
             <Route path="departments" element={<Departments />} />
-            <Route path="academic-courses" element={<Courses />} />
+            <Route path="courses" element={<Courses />} />
             <Route path="semesters" element={<Semesters />} />
-            <Route path="subjects" element={<Subjects />} />
+            <Route path="programs" element={<Programs />} />
             <Route path="assignments" element={<FacultyAssignments />} />
             <Route path="students" element={<Students />} />
             <Route path="academic-timetable" element={<Timetable />} />
@@ -92,6 +94,7 @@ function App() {
             {/* New Workflows */}
             <Route path="leaves" element={<LeaveApproval />} />
             <Route path="substitutions" element={<SubstitutionPage />} />
+            <Route path="academic-calendar" element={<SchoolCalendar />} />
             <Route path="master-calendar" element={<MasterAttendanceCalendar />} />
             <Route path="faculty-attendance" element={<AdminFacultyAttendance />} />
 
@@ -107,13 +110,14 @@ function App() {
             </ProtectedRoute>
           }>
             <Route path="dashboard" element={<FacultyDashboard />} />
-            <Route path="courses" element={<FacultyCourses />} />
+            <Route path="courses" element={<FacultyPrograms />} />
             <Route path="my-class" element={<MyClass />} />
             <Route path="academic-progress" element={<AcademicProgress />} />
             <Route path="leave-management" element={<LeaveManagement />} />
             <Route path="substitutions" element={<SubstitutionPage />} />
             <Route path="timetables" element={<FacultyTimetables />} />
             <Route path="my-attendance" element={<MyAttendance />} />
+            <Route path="academic-calendar" element={<ViewCalendar />} />
 
             <Route path="profile" element={<UserProfile />} />
           </Route>

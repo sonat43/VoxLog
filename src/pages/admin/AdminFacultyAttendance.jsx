@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { fetchAllUsers, getTodayFacultyAttendance, updateFacultyDailyAttendance } from '../../services/adminService';
-import { Calendar, Search, CheckCircle, XCircle, UserX, Save, Loader2 } from 'lucide-react';
+import { Calendar, Search, CheckCircle, XCircle, UserX, Save, Loader2, Download } from 'lucide-react';
+import { downloadCSV } from '../../utils/csvExport';
 
 const AdminFacultyAttendance = () => {
     const [facultyList, setFacultyList] = useState([]);
@@ -9,6 +10,35 @@ const AdminFacultyAttendance = () => {
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [updatingState, setUpdatingState] = useState({});
+
+    // Bulk Export State
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [exportStartDate, setExportStartDate] = useState('');
+    const [exportEndDate, setExportEndDate] = useState('');
+    const [exporting, setExporting] = useState(false);
+
+    // Helper for Quick Filters
+    const setQuickDateRange = (days) => {
+        const end = new Date();
+        const start = new Date();
+        start.setDate(end.getDate() - days);
+
+        // Local ISO helper
+        const toLocalISO = (date) => {
+            const offset = date.getTimezoneOffset();
+            const localDate = new Date(date.getTime() - (offset * 60 * 1000));
+            return localDate.toISOString().split('T')[0];
+        };
+
+        const startStr = toLocalISO(start);
+        const endStr = toLocalISO(end);
+
+        setExportStartDate(startStr);
+        setExportEndDate(endStr);
+
+        // Auto trigger
+        setTimeout(() => handleBulkExport(startStr, endStr), 0);
+    };
 
     useEffect(() => {
         loadData();
@@ -65,18 +95,109 @@ const AdminFacultyAttendance = () => {
         }
     };
 
+    const handleBulkExport = async (overrideStart, overrideEnd) => {
+        const startDate = overrideStart || exportStartDate;
+        const endDate = overrideEnd || exportEndDate;
+
+        if (!startDate || !endDate) {
+            alert("Please select both start and end dates.");
+            return;
+        }
+
+        setExporting(true);
+        try {
+            const { db } = await import('../../services/firebase');
+            const { collection, query, where, getDocs } = await import('firebase/firestore');
+
+            const q = query(
+                collection(db, "faculty_attendance"),
+                where("dateString", ">=", startDate),
+                where("dateString", "<=", endDate)
+            );
+
+            const snap = await getDocs(q);
+            const records = snap.docs.map(doc => doc.data());
+
+            if (!records || records.length === 0) {
+                alert(`No records found between ${startDate} and ${endDate}.`);
+                return;
+            }
+
+            const facultyMap = {};
+            facultyList.forEach(f => {
+                facultyMap[f.id || f.uid] = {
+                    name: f.displayName || f.name || 'Unknown',
+                    department: f.department || 'N/A',
+                    present: 0, absent: 0, leave: 0, total: 0
+                };
+            });
+
+            records.forEach(r => {
+                const fac = facultyMap[r.facultyId];
+                if (fac) {
+                    if (r.status === 'Present') fac.present++;
+                    if (r.status === 'Absent') fac.absent++;
+                    if (r.status === 'On-Leave') fac.leave++;
+                    fac.total++;
+                }
+            });
+
+            const headers = ['Faculty Name', 'Department', 'Total Days Recorded', 'Total Present', 'Total Absent', 'Total On-Leave', 'Overall Attendance %'];
+
+            const data = facultyList.map(faculty => {
+                const fac = facultyMap[faculty.id || faculty.uid];
+                const pct = fac.total > 0 ? ((fac.present / fac.total) * 100).toFixed(1) + '%' : 'N/A';
+
+                return {
+                    'Faculty Name': fac.name,
+                    'Department': fac.department,
+                    'Total Days Recorded': fac.total,
+                    'Total Present': fac.present,
+                    'Total Absent': fac.absent,
+                    'Total On-Leave': fac.leave,
+                    'Overall Attendance %': pct
+                };
+            });
+
+            const filename = `Bulk_Faculty_Attendance_${exportStartDate}_to_${exportEndDate}`;
+            downloadCSV(data, headers, filename);
+            setShowExportModal(false);
+        } catch (error) {
+            console.error("Export error:", error);
+            alert("Failed to export faculty attendance records.");
+        } finally {
+            setExporting(false);
+        }
+    };
+
     const displayFaculty = facultyList.filter(f =>
         (f.displayName || f.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
         (f.department || '').toLowerCase().includes(searchTerm.toLowerCase())
     );
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+        <div className="mobile-p-4" style={{ padding: '2rem', maxWidth: '1400px', margin: '0 auto' }}>
+            <div className="flex-col-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>Faculty Attendance Manager</h1>
                     <p style={{ color: '#94a3b8' }}>Manually correct or override daily attendance logs for faculty members.</p>
                 </div>
+                <button
+                    onClick={() => setShowExportModal(true)}
+                    style={{
+                        padding: '0.75rem 1.5rem',
+                        background: 'rgba(255, 255, 255, 0.1)',
+                        color: 'white',
+                        border: '1px solid rgba(255, 255, 255, 0.2)',
+                        borderRadius: '1rem', fontWeight: '600', cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', gap: '0.5rem', transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.15)' }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255, 255, 255, 0.1)' }}
+                >
+                    <Download size={18} />
+                    Export Reports
+                </button>
             </div>
 
             <div style={{ background: '#1e293b', padding: '1.5rem', borderRadius: '12px', border: '1px solid #334155', marginBottom: '2rem', display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
@@ -115,8 +236,8 @@ const AdminFacultyAttendance = () => {
                     Loading attendance data...
                 </div>
             ) : (
-                <div style={{ background: '#0f172a', borderRadius: '16px', border: '1px solid #334155', overflow: 'hidden' }}>
-                    <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
+                <div className="overflow-x-auto" style={{ background: '#0f172a', borderRadius: '16px', border: '1px solid #334155' }}>
+                    <table style={{ width: '100%', minWidth: '800px', borderCollapse: 'collapse', textAlign: 'left' }}>
                         <thead>
                             <tr style={{ background: '#1e293b', borderBottom: '1px solid #334155' }}>
                                 <th style={{ padding: '1rem 1.5rem', color: '#94a3b8', fontWeight: 600 }}>Faculty Name</th>
@@ -204,8 +325,83 @@ const AdminFacultyAttendance = () => {
                         </tbody>
                     </table>
                 </div>
-            )
-            }
+            )}
+
+            {/* Bulk Export Modal */}
+            {showExportModal && (
+                <div style={{
+                    position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                    background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 100
+                }}>
+                    <div style={{
+                        background: '#1e293b', padding: '2rem', borderRadius: '16px',
+                        width: '100%', maxWidth: '450px', border: '1px solid #334155'
+                    }}>
+                        <h3 style={{ marginTop: 0, color: 'white', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <Download size={20} color="#14b8a6" />
+                            Bulk Faculty Export
+                        </h3>
+
+                        <p style={{ color: '#94a3b8', fontSize: '0.9rem', marginBottom: '1.5rem' }}>
+                            Select a date range to generate an aggregated CSV report of all faculty attendance tracking.
+                        </p>
+
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem' }}>
+                            <button onClick={() => setQuickDateRange(7)} type="button" style={{
+                                flex: 1, padding: '0.5rem', background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155',
+                                borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem'
+                            }}>Past 7 Days</button>
+                            <button onClick={() => setQuickDateRange(30)} type="button" style={{
+                                flex: 1, padding: '0.5rem', background: '#0f172a', color: '#cbd5e1', border: '1px solid #334155',
+                                borderRadius: '8px', cursor: 'pointer', fontSize: '0.85rem'
+                            }}>Past 30 Days</button>
+                        </div>
+
+                        <div style={{ display: 'flex', gap: '1rem', marginBottom: '2rem' }}>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>Start Date</label>
+                                <input
+                                    type="date"
+                                    value={exportStartDate}
+                                    onChange={(e) => setExportStartDate(e.target.value)}
+                                    style={{ width: '100%', padding: '0.75rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', outline: 'none' }}
+                                />
+                            </div>
+                            <div style={{ flex: 1 }}>
+                                <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.85rem', marginBottom: '0.5rem' }}>End Date</label>
+                                <input
+                                    type="date"
+                                    value={exportEndDate}
+                                    onChange={(e) => setExportEndDate(e.target.value)}
+                                    style={{ width: '100%', padding: '0.75rem', background: '#0f172a', border: '1px solid #334155', borderRadius: '8px', color: 'white', outline: 'none' }}
+                                />
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+                            <button
+                                onClick={() => setShowExportModal(false)}
+                                style={{ padding: '0.75rem 1.5rem', background: 'transparent', color: '#94a3b8', border: '1px solid #334155', borderRadius: '8px', cursor: 'pointer' }}
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleBulkExport}
+                                disabled={exporting}
+                                style={{
+                                    padding: '0.75rem 1.5rem', background: '#14b8a6', color: 'white', border: 'none',
+                                    borderRadius: '8px', fontWeight: 'bold', cursor: exporting ? 'not-allowed' : 'pointer', opacity: exporting ? 0.7 : 1,
+                                    display: 'flex', alignItems: 'center', gap: '0.5rem'
+                                }}
+                            >
+                                {exporting ? <div className="spinner-small" /> : <Download size={18} />}
+                                {exporting ? 'Generating...' : 'Export CSV'}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div >
     );
 };

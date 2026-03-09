@@ -3,30 +3,30 @@ import { AnimatePresence } from 'framer-motion';
 import AttendanceModal from '../../components/dashboard/AttendanceModal';
 import SubstitutionManagement from './SubstitutionManagement';
 
-import CourseCard from '../../components/dashboard/CourseCard';
+import ProgramCard from '../../components/dashboard/ProgramCard';
 import LoadingScreen from '../../components/LoadingScreen';
 import { useAuth } from '../../context/AuthContext';
 import {
     getFacultyAssignmentsByFaculty,
-    getSubjects,
-    getSemesters,
     getCourses,
+    getSemesters,
+    getPrograms,
     getSemestersByClassTeacher
 } from '../../services/academicService';
 import { getTimetable } from '../../services/timetableService';
 import { BookOpen, Users } from 'lucide-react';
 
-const FacultyCourses = () => {
+const FacultyPrograms = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
-    const [myCourses, setMyCourses] = useState([]);
+    const [myPrograms, setMyPrograms] = useState([]);
     const [myManagedClasses, setMyManagedClasses] = useState([]);
     const [timetables, setTimetables] = useState({});
-    const [activeSubjectIds, setActiveSubjectIds] = useState([]);
+    const [activeCourseIds, setActiveCourseIds] = useState([]);
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [showSubstitutionModal, setShowSubstitutionModal] = useState(false);
-    const [selectedCourseForAttendance, setSelectedCourseForAttendance] = useState(null);
-    const [courseStatusMap, setCourseStatusMap] = useState({});
+    const [selectedProgramForAttendance, setSelectedProgramForAttendance] = useState(null);
+    const [programStatusMap, setProgramStatusMap] = useState({});
 
     useEffect(() => {
         const fetchData = async () => {
@@ -37,49 +37,49 @@ const FacultyCourses = () => {
                 // Fetch all raw data we might need
                 const [
                     assignments,
-                    allSubjects,
-                    allSemesters,
                     allCourses,
+                    allSemesters,
+                    allPrograms,
                     managedSemesters
                 ] = await Promise.all([
                     getFacultyAssignmentsByFaculty(user.uid),
-                    getSubjects(),
-                    getSemesters(),
                     getCourses(),
+                    getSemesters(),
+                    getPrograms(),
                     getSemestersByClassTeacher(user.uid)
                 ]);
 
-                // Process "My Subjects" (Courses I teach)
-                const processedCourses = assignments.map(assignment => {
-                    const subject = allSubjects.find(s => s.id === assignment.subjectId);
-                    if (!subject) return null;
+                // Process "My Courses" (Programs I teach)
+                const processedPrograms = assignments.map(assignment => {
+                    const course = allCourses.find(s => s.id === assignment.courseId);
+                    if (!course) return null;
 
-                    const semester = allSemesters.find(s => s.id === subject.semesterId);
-                    // Use subject.courseId if available, fallback to semester.courseId
-                    const courseId = subject.courseId || (semester ? semester.courseId : null);
-                    const course = allCourses.find(c => c.id === courseId);
+                    const semester = allSemesters.find(s => s.id === course.semesterId);
+                    // Use course.programId if available, fallback to semester.programId
+                    const programId = course.programId || (semester ? semester.programId : null);
+                    const program = allPrograms.find(c => c.id === programId);
 
                     return {
                         id: assignment.id, // Assignment ID
-                        subjectId: subject.id,
-                        courseCode: subject.code,
-                        courseName: subject.name,
+                        courseId: course.id,
+                        programCode: course.code,
+                        degreeName: program ? program.name : 'Unknown Program',
+                        courseName: course.name,
                         // If we have semester info, show it
                         section: semester ? `Sem ${semester.semesterNo}` : 'N/A',
                         semesterId: semester ? semester.id : null,
                         studentCount: semester ? semester.studentCount : 0,
                         status: 'inactive', // Defaulting to inactive, will verify with timetable
-                        programName: course ? course.name : 'Unknown Program',
-                        code: subject.code, // For modal
-                        name: subject.name, // For modal
+                        code: course.code, // For modal
+                        name: course.name, // For modal
                         sectionCode: semester ? `Sem ${semester.semesterNo}` : 'N/A' // For modal
                     };
                 }).filter(item => item !== null);
 
-                setMyCourses(processedCourses);
+                setMyPrograms(processedPrograms);
 
                 // Fetch Timetables for relevant semesters
-                const uniqueSemesterIds = [...new Set(processedCourses.map(c => c.semesterId).filter(Boolean))];
+                const uniqueSemesterIds = [...new Set(processedPrograms.map(c => c.semesterId).filter(Boolean))];
                 const timetableMap = {};
                 await Promise.all(uniqueSemesterIds.map(async (semId) => {
                     const schedule = await getTimetable(semId);
@@ -91,20 +91,20 @@ const FacultyCourses = () => {
 
                 // Process "My Class" (Classes I am a Class Teacher for)
                 const processedManagedClasses = managedSemesters.map(semester => {
-                    const course = allCourses.find(c => c.id === semester.courseId);
+                    const program = allPrograms.find(c => c.id === semester.programId);
                     return {
                         id: semester.id,
                         semesterNo: semester.semesterNo,
                         studentCount: semester.studentCount,
-                        programName: course ? course.name : 'Unknown Program',
-                        courseId: course ? course.id : null
+                        programName: program ? program.name : 'Unknown Program',
+                        programId: program ? program.id : null
                     };
                 });
 
                 setMyManagedClasses(processedManagedClasses);
 
             } catch (error) {
-                console.error("Error fetching faculty courses:", error);
+                console.error("Error fetching faculty programs:", error);
             } finally {
                 setLoading(false);
             }
@@ -125,20 +125,20 @@ const FacultyCourses = () => {
             const currentTimeVal = currentHour * 60 + currentMinute;
 
             const activeIds = [];
-            const statusMap = {}; // subjectId -> statusMessage
+            const statusMap = {}; // courseId -> statusMessage
 
-            myCourses.forEach(course => {
-                if (!course.semesterId || !timetables[course.semesterId]) {
-                    statusMap[course.subjectId] = "No Timetable Found";
+            myPrograms.forEach(program => {
+                if (!program.semesterId || !timetables[program.semesterId]) {
+                    statusMap[program.courseId] = "No Timetable Found";
                     return;
                 }
 
                 // Case-insensitive day match
-                const schedule = timetables[course.semesterId];
+                const schedule = timetables[program.semesterId];
                 const dayKey = Object.keys(schedule).find(k => k.toLowerCase() === currentDay.toLowerCase());
 
                 if (!dayKey || !schedule[dayKey]) {
-                    statusMap[course.subjectId] = `No classes on ${currentDay}`;
+                    statusMap[program.courseId] = `No classes on ${currentDay}`;
                     return;
                 }
 
@@ -149,7 +149,7 @@ const FacultyCourses = () => {
 
                 // Check each slot
                 daySchedule.forEach(slot => {
-                    if (slot.subjectId !== course.subjectId) return;
+                    if (slot.courseId !== program.courseId) return;
 
                     // slot.timeRange format: "09:00 - 10:00"
                     const parts = slot.timeRange.split('-').map(s => s.trim());
@@ -175,17 +175,17 @@ const FacultyCourses = () => {
                 });
 
                 if (isNow) {
-                    activeIds.push(course.subjectId);
-                    statusMap[course.subjectId] = "Class in Progress";
+                    activeIds.push(program.courseId);
+                    statusMap[program.courseId] = "Class in Progress";
                 } else if (nextSlot) {
-                    statusMap[course.subjectId] = `Next: ${nextSlot}`;
+                    statusMap[program.courseId] = `Next: ${nextSlot}`;
                 } else {
-                    statusMap[course.subjectId] = "No more classes today";
+                    statusMap[program.courseId] = "No more classes today";
                 }
             });
 
-            setActiveSubjectIds(activeIds);
-            setCourseStatusMap(statusMap);
+            setActiveCourseIds(activeIds);
+            setProgramStatusMap(statusMap);
         };
 
         // Run immediately and then every minute
@@ -193,11 +193,11 @@ const FacultyCourses = () => {
         const interval = setInterval(checkActiveSessions, 60000); // 1 minute
 
         return () => clearInterval(interval);
-    }, [myCourses, timetables]);
+    }, [myPrograms, timetables]);
 
-    const handleTakeAttendance = (course) => {
-        // Ensure the course object passed to modal has active status so it appears
-        setSelectedCourseForAttendance({ ...course, status: 'active' });
+    const handleTakeAttendance = (program) => {
+        // Ensure the program object passed to modal has active status so it appears
+        setSelectedProgramForAttendance({ ...program, status: 'active' });
         setShowAttendanceModal(true);
     };
 
@@ -208,7 +208,7 @@ const FacultyCourses = () => {
                     <div>
                         <h1 style={{ color: 'white', marginBottom: '0.5rem', fontSize: '2rem' }}>Academic Overview</h1>
                         <p style={{ color: 'var(--color-text-muted)', marginBottom: '0' }}>
-                            Manage your assigned subjects and view class details.
+                            Manage your assigned courses and view class details.
                         </p>
                     </div>
                     {myManagedClasses.length > 0 && (
@@ -280,14 +280,14 @@ const FacultyCourses = () => {
                             </section>
                         )}
 
-                        {/* My Assigned Subjects Section */}
+                        {/* My Assigned Courses Section */}
                         <section>
                             <h2 style={{ color: 'white', fontSize: '1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                 <BookOpen size={24} color="var(--color-primary)" />
-                                My Assigned Subjects
+                                My Assigned Courses
                             </h2>
 
-                            {myCourses.length === 0 ? (
+                            {myPrograms.length === 0 ? (
                                 <div style={{
                                     padding: '3rem',
                                     textAlign: 'center',
@@ -296,20 +296,20 @@ const FacultyCourses = () => {
                                     border: '1px dashed var(--color-border)',
                                     color: 'var(--color-text-muted)'
                                 }}>
-                                    No subjects assigned yet.
+                                    No courses assigned yet.
                                 </div>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
-                                    {myCourses.map((course) => (
-                                        <CourseCard
-                                            key={course.id}
-                                            courseCode={course.courseCode}
-                                            courseName={course.courseName}
-                                            section={course.section}
-                                            studentCount={course.studentCount}
-                                            status={activeSubjectIds.includes(course.subjectId) ? 'active' : 'inactive'}
-                                            statusMessage={courseStatusMap[course.subjectId]}
-                                            onAction={() => handleTakeAttendance(course)}
+                                    {myPrograms.map((program) => (
+                                        <ProgramCard
+                                            key={program.id}
+                                            programCode={program.programCode}
+                                            programName={program.courseName}
+                                            section={`${program.degreeName} | ${program.section}`}
+                                            studentCount={program.studentCount}
+                                            status={activeCourseIds.includes(program.courseId) ? 'active' : 'inactive'}
+                                            statusMessage={programStatusMap[program.courseId]}
+                                            onAction={() => handleTakeAttendance(program)}
                                         />
                                     ))}
                                 </div>
@@ -321,11 +321,11 @@ const FacultyCourses = () => {
 
             {/* Attendance Modal */}
             <AnimatePresence>
-                {showAttendanceModal && selectedCourseForAttendance && (
+                {showAttendanceModal && selectedProgramForAttendance && (
                     <AttendanceModal
                         isOpen={showAttendanceModal}
                         onClose={() => setShowAttendanceModal(false)}
-                        courses={[selectedCourseForAttendance]}
+                        programs={[selectedProgramForAttendance]}
                     />
                 )}
             </AnimatePresence>
@@ -343,4 +343,4 @@ const FacultyCourses = () => {
     );
 };
 
-export default FacultyCourses;
+export default FacultyPrograms;

@@ -136,8 +136,8 @@ const LeaveManagement = () => {
     };
 
     return (
-        <div style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div className="mobile-p-4" style={{ maxWidth: '1000px', margin: '0 auto', padding: '2rem' }}>
+            <div className="flex-col-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>Leave Management</h1>
                     <p style={{ color: '#94a3b8' }}>View your leave history and apply for new leaves.</p>
@@ -181,7 +181,7 @@ const LeaveManagement = () => {
             </div>
 
             {/* Filters */}
-            <div style={{ marginBottom: '24px', display: 'flex', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
+            <div style={{ marginBottom: '24px', display: 'flex', flexWrap: 'wrap', gap: '8px', background: 'rgba(255,255,255,0.02)', padding: '4px', borderRadius: '12px', width: 'fit-content' }}>
                 {['All', 'Pending', 'Approved', 'Rejected'].map(status => (
                     <button
                         key={status}
@@ -226,13 +226,15 @@ const LeaveManagement = () => {
                             key={leave.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
+                            className="flex-col-mobile mobile-p-4"
                             style={{
                                 background: '#1e293b',
                                 borderRadius: '16px',
                                 padding: '24px',
                                 display: 'flex',
                                 justifyContent: 'space-between',
-                                alignItems: 'center',
+                                alignItems: 'flex-start',
+                                gap: '1rem',
                                 border: '1px solid #334155'
                             }}
                         >
@@ -307,7 +309,7 @@ const LeaveManagement = () => {
                                     </select>
                                 </div>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
+                                <div className="grid-responsive" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
                                     <div>
                                         <label style={{ display: 'block', color: '#94a3b8', marginBottom: '8px', fontSize: '0.9rem' }}>From Date</label>
                                         <input

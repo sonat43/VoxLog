@@ -1,0 +1,148 @@
+/* src/responsive.css */
+/* Global Responsive Utility Classes & Breakpoints */
+
+/* ========================================================================= */
+/* BASE RESPONSIVE SETTINGS */
+/* ========================================================================= */
+html,
+body {
+    overflow-x: hidden;
+    /* Prevent horizontal scrolling at the root level */
+    width: 100%;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+/* Base utility for tables or wide data grids */
+.overflow-x-auto {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    width: 100%;
+}
+
+/* ========================================================================= */
+/* MOBILE & TABLET (Phones & Tablets, max-width: 1023px) */
+/* ========================================================================= */
+@media screen and (max-width: 1023px) {
+    .hide-on-mobile {
+        display: none !important;
+    }
+
+    .show-on-mobile {
+        display: block !important;
+    }
+
+    .flex-col-mobile {
+        flex-direction: column !important;
+    }
+
+    .grid-responsive {
+        grid-template-columns: 1fr !important;
+    }
+
+    .mobile-100w {
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+
+    .mobile-p-4 {
+        padding: 1rem !important;
+    }
+
+    .mobile-m-0 {
+        margin: 0 !important;
+    }
+
+    /* Modal / Sidebar Overlays */
+    .mobile-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100vw;
+        height: 100vh;
+        background: rgba(0, 0, 0, 0.5);
+        z-index: 40;
+    }
+
+    .sidebar-mobile {
+        position: fixed !important;
+        left: 0;
+        top: 0;
+        height: 100vh;
+        z-index: 50;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .sidebar-mobile.open {
+        transform: translateX(0);
+    }
+
+    /* Specific Wrapper for DashboardLayout / AdminLayout */
+    .sidebar-wrapper {
+        position: fixed !important;
+        top: 64px !important;
+        left: 0 !important;
+        height: calc(100vh - 64px) !important;
+        width: 260px !important;
+        z-index: 40 !important;
+        transform: translateX(-100%);
+        transition: transform 0.3s ease-in-out;
+    }
+
+    .sidebar-wrapper.open {
+        transform: translateX(0);
+    }
+
+    .main-content-wrapper {
+        margin-left: 0 !important;
+    }
+
+    .topbar-wrapper {
+        left: 0 !important;
+        padding: 0 1rem !important;
+    }
+}
+
+/* ========================================================================= */
+/* DESKTOP & LAPTOP (min-width: 1024px) */
+/* ========================================================================= */
+@media screen and (min-width: 1024px) {
+    .hide-on-desktop {
+        display: none !important;
+    }
+
+    .show-on-mobile {
+        display: none !important;
+    }
+
+    .hide-on-mobile {
+        display: flex !important;
+        /* Restore for search etc */
+    }
+
+    /* Force Sidebar to remain open on Desktop */
+    .sidebar-wrapper {
+        width: 260px !important;
+        transform: translateX(0) !important;
+    }
+
+    /* Force Main content to respect Desktop sidebar width */
+    .main-content-wrapper {
+        margin-left: 260px !important;
+    }
+
+    /* Force Topbar to respect Desktop sidebar width */
+    .topbar-wrapper {
+        left: 260px !important;
+    }
+}
+
+/* ========================================================================= */
+/* DESKTOP (min-width: 1440px) */
+/* ========================================================================= */
+@media screen and (min-width: 1440px) {
+    /* Reserve for future desktop-specific overrides */
+}

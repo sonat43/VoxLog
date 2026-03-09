@@ -1,34 +1,40 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
-import { Trash2, Edit } from 'lucide-react';
-import { getCourses, addCourse, deleteCourse, getDepartments, updateCourse } from '../../../services/academicService';
+import { getCourses, addCourse, getPrograms, getSemesters, updateCourse, deleteCourse } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 import ConfirmModal from '../../../components/common/ConfirmModal';
+import SyllabusModal from '../../../components/admin/academic/SyllabusModal';
+import { BookOpen, Edit, Trash2 } from 'lucide-react';
 
 const Courses = () => {
     const [courses, setCourses] = useState([]);
-    const [departments, setDepartments] = useState([]);
+    const [programs, setPrograms] = useState([]);
+    const [semesters, setSemesters] = useState([]);
     const [loading, setLoading] = useState(true);
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+    const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
+    const [selectedCourse, setSelectedCourse] = useState(null);
 
-    // Form State
-    const [formData, setFormData] = useState({ name: '', departmentId: '', duration: 3 });
+    const [formData, setFormData] = useState({ code: '', name: '', credits: 3, programId: '', semesterId: '' });
     const [editingId, setEditingId] = useState(null);
-
     const [toast, setToast] = useState(null);
-    const [confirmModal, setConfirmModal] = useState({ isOpen: false });
 
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [coursesData, departmentsData] = await Promise.all([
+            const [coursesData, programsData, semestersData] = await Promise.all([
                 getCourses(),
-                getDepartments()
+                getPrograms(),
+                getSemesters()
             ]);
+
             setCourses(coursesData);
-            setDepartments(departmentsData);
+            setPrograms(programsData);
+            setSemesters(semestersData);
         } catch (error) {
+            console.error("Courses Fetch Error:", error);
             setToast({ message: "Failed to load data", type: "error" });
         } finally {
             setLoading(false);
@@ -44,13 +50,15 @@ const Courses = () => {
         try {
             if (editingId) {
                 await updateCourse(editingId, {
+                    code: formData.code,
                     name: formData.name,
-                    departmentId: formData.departmentId,
-                    duration: formData.duration
+                    credits: formData.credits,
+                    semesterId: formData.semesterId,
+                    programId: formData.programId
                 });
                 setToast({ message: "Course updated successfully", type: "success" });
             } else {
-                await addCourse(formData.name, formData.departmentId, formData.duration);
+                await addCourse(formData.code, formData.name, formData.credits, formData.semesterId, formData.programId);
                 setToast({ message: "Course added successfully", type: "success" });
             }
             handleCloseModal();
@@ -60,52 +68,64 @@ const Courses = () => {
         }
     };
 
-    const startEdit = (course) => {
+    const startEdit = (sub) => {
         setFormData({
-            name: course.name,
-            departmentId: course.departmentId,
-            duration: course.duration
+            code: sub.code,
+            name: sub.name,
+            credits: sub.credits,
+            programId: sub.programId,
+            semesterId: sub.semesterId
         });
-        setEditingId(course.id);
+        setEditingId(sub.id);
         setIsModalOpen(true);
     };
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setFormData({ name: '', departmentId: '', duration: 3 });
+        setFormData({ code: '', name: '', credits: 3, programId: '', semesterId: '' });
         setEditingId(null);
     };
 
-    const handleDelete = (course) => {
-        setConfirmModal({
-            isOpen: true,
-            title: "Delete Course",
-            message: `Are you sure you want to delete ${course.name}?`,
-            isDangerous: true,
-            confirmText: "Delete",
-            onConfirm: async () => {
-                try {
-                    await deleteCourse(course.id);
-                    setToast({ message: "Course deleted successfully", type: "success" });
-                    setConfirmModal({ isOpen: false });
-                    fetchData();
-                } catch (error) {
-                    setToast({ message: error.message, type: "error" });
-                    setConfirmModal({ isOpen: false });
-                }
-            }
-        });
+    const confirmDelete = (course) => {
+        setSelectedCourse(course);
+        setIsDeleteModalOpen(true);
     };
 
-    const getDeptName = (deptId) => {
-        const dept = departments.find(d => d.id === deptId);
-        return dept ? dept.name : 'Unknown Department';
+    const handleDelete = async () => {
+        if (!selectedCourse) return;
+        try {
+            await deleteCourse(selectedCourse.id);
+            setToast({ message: "Course deleted successfully", type: "success" });
+            setIsDeleteModalOpen(false);
+            fetchData();
+        } catch (error) {
+            setToast({ message: error.message || "Failed to delete", type: "error" });
+            setIsDeleteModalOpen(false);
+        }
+    };
+
+    const getProgramName = (programId, row) => {
+        let pId = programId;
+        // Fallback: If course doesn't have programId, get it from its semester
+        if (!pId && row && row.semesterId) {
+            const sem = semesters.find(s => String(s.id) === String(row.semesterId));
+            if (sem) pId = sem.programId;
+        }
+        const c = programs.find(x => String(x.id) === String(pId));
+        return c ? c.name : 'Unknown';
+    };
+
+    const getSemesterName = (semId) => {
+        const s = semesters.find(x => x.id === semId);
+        return s ? `Sem ${s.semesterNo}` : 'Unknown';
     };
 
     const columns = [
+        { key: 'code', label: 'Course Code', render: (val) => <span style={{ fontFamily: 'monospace', color: '#14b8a6' }}>{val}</span> },
         { key: 'name', label: 'Course Name', render: (val) => <span style={{ color: 'white', fontWeight: 500 }}>{val}</span> },
-        { key: 'departmentId', label: 'Department', render: (val) => <span style={{ color: '#d1d5db' }}>{getDeptName(val)}</span> },
-        { key: 'duration', label: 'Duration (Years)', render: (val) => <span style={{ color: '#9ca3af' }}>{val} Years</span> }
+        { key: 'programId', label: 'Program', render: (val, row) => <span style={{ color: '#d1d5db' }}>{getProgramName(val, row)}</span> },
+        { key: 'semesterId', label: 'Semester', render: (val) => <span style={{ color: '#9ca3af' }}>{getSemesterName(val)}</span> },
+        { key: 'credits', label: 'Credits', render: (val) => <span style={{ color: '#9ca3af' }}>{val}</span> }
     ];
 
     const renderActions = (row) => (
@@ -123,12 +143,30 @@ const Courses = () => {
                     alignItems: 'center',
                     justifyContent: 'center'
                 }}
-                title="Edit"
+                title="Edit Course"
             >
                 <Edit size={16} />
             </button>
             <button
-                onClick={() => handleDelete(row)}
+                onClick={() => {
+                    setSelectedCourse(row);
+                    setIsSyllabusModalOpen(true);
+                }}
+                style={{
+                    background: 'rgba(59, 130, 246, 0.1)',
+                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                    borderRadius: '0.375rem',
+                    padding: '0.5rem',
+                    cursor: 'pointer',
+                    color: '#3b82f6',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center'
+                }}
+                title="Manage Syllabus"
+            >
+                <BookOpen size={16} />
+            </button>
+            <button
+                onClick={() => confirmDelete(row)}
                 style={{
                     background: 'rgba(239, 68, 68, 0.1)',
                     border: '1px solid rgba(239, 68, 68, 0.2)',
@@ -140,18 +178,23 @@ const Courses = () => {
                     alignItems: 'center',
                     justifyContent: 'center'
                 }}
-                title="Delete"
+                title="Delete Course"
             >
                 <Trash2 size={16} />
             </button>
         </div>
     );
 
+    // Filter semesters based on selected program
+    const availableSemesters = semesters
+        .filter(s => String(s.programId) === String(formData.programId)) // Ensure string comparison
+        .sort((a, b) => a.semesterNo - b.semesterNo);
+
     return (
         <div>
             <div style={{ marginBottom: '2rem' }}>
                 <h1 style={{ fontSize: '1.875rem', fontWeight: 'bold', margin: '0 0 0.5rem 0', color: 'white' }}>Courses</h1>
-                <p style={{ color: '#9ca3af', margin: 0 }}>Manage academic courses.</p>
+                <p style={{ color: '#9ca3af', margin: 0 }}>Manage courses for each semester.</p>
             </div>
 
             <DataTable
@@ -160,49 +203,96 @@ const Courses = () => {
                 data={courses}
                 onAdd={() => {
                     setEditingId(null);
-                    setFormData({ name: '', departmentId: '', duration: 3 });
+                    setFormData({ code: '', name: '', credits: 3, programId: '', semesterId: '' });
                     setIsModalOpen(true);
                 }}
                 renderActions={renderActions}
             />
 
+            <ConfirmModal
+                isOpen={isDeleteModalOpen}
+                onClose={() => setIsDeleteModalOpen(false)}
+                onConfirm={handleDelete}
+                title="Delete Course"
+                message={`Are you sure you want to delete ${selectedCourse?.name}?`}
+                isDangerous={true}
+                confirmText="Delete"
+            />
+
+            <SyllabusModal
+                isOpen={isSyllabusModalOpen}
+                onClose={() => setIsSyllabusModalOpen(false)}
+                course={selectedCourse}
+            />
+
             <SimpleModal isOpen={isModalOpen} onClose={handleCloseModal} title={editingId ? "Edit Course" : "Add Course"}>
                 <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Program</label>
+                        <select
+                            value={formData.programId}
+                            onChange={(e) => setFormData({ ...formData, programId: e.target.value, semesterId: '' })}
+                            required
+                            style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
+                        >
+                            <option value="">Select Program...</option>
+                            {programs.length === 0 && <option disabled>No programs found</option>}
+                            {programs.map(c => (
+                                <option key={c.id} value={c.id}>{c.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Semester</label>
+                        <select
+                            value={formData.semesterId}
+                            onChange={(e) => setFormData({ ...formData, semesterId: e.target.value })}
+                            required
+                            disabled={!formData.programId}
+                            style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none', opacity: !formData.programId ? 0.5 : 1 }}
+                        >
+                            <option value="">Select Semester...</option>
+                            {formData.programId && availableSemesters.length === 0 && <option disabled>No semesters found for this program</option>}
+                            {availableSemesters.map(s => (
+                                <option key={s.id} value={s.id}>Semester {s.semesterNo}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+                            <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Course Code</label>
+                            <input
+                                value={formData.code}
+                                onChange={(e) => setFormData({ ...formData, code: e.target.value.toUpperCase() })}
+                                required
+                                placeholder="e.g. CS101"
+                                style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', width: '100px' }}>
+                            <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Credits</label>
+                            <input
+                                type="number"
+                                min="0"
+                                max="10"
+                                value={formData.credits}
+                                onChange={(e) => setFormData({ ...formData, credits: e.target.value })}
+                                required
+                                style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
+                            />
+                        </div>
+                    </div>
+
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                         <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Course Name</label>
                         <input
                             value={formData.name}
                             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                             required
-                            placeholder="e.g. B.Tech Computer Science"
-                            style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
-                        />
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Department</label>
-                        <select
-                            value={formData.departmentId}
-                            onChange={(e) => setFormData({ ...formData, departmentId: e.target.value })}
-                            required
-                            style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
-                        >
-                            <option value="">Select Department...</option>
-                            {departments.filter(d => d.status === 'active').map(d => (
-                                <option key={d.id} value={d.id}>{d.name}</option>
-                            ))}
-                        </select>
-                    </div>
-
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Duration (Years)</label>
-                        <input
-                            type="number"
-                            min="1"
-                            max="6"
-                            value={formData.duration}
-                            onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-                            required
+                            placeholder="e.g. Introduction to Programming"
                             style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
                         />
                     </div>
@@ -214,18 +304,7 @@ const Courses = () => {
             </SimpleModal>
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
-
-            <ConfirmModal
-                isOpen={confirmModal.isOpen}
-                onClose={() => setConfirmModal({ ...confirmModal, isOpen: false })}
-                onConfirm={confirmModal.onConfirm}
-                title={confirmModal.title}
-                message={confirmModal.message}
-                isDangerous={confirmModal.isDangerous}
-                confirmText={confirmModal.confirmText}
-            />
         </div>
     );
 };
-
 export default Courses;

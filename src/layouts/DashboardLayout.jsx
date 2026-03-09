@@ -10,6 +10,9 @@ import {
     User,
     LogOut,
     Menu,
+    Clock,
+    Calendar,
+    X,
     ChevronLeft,
     Bell,
     GraduationCap,
@@ -117,6 +120,7 @@ const DashboardLayout = ({ children }) => {
         { icon: ClipboardCheck, label: 'Leave Management', path: '/faculty/leave-management' },
         { icon: History, label: 'My Attendance', path: '/faculty/my-attendance' },
         { icon: Users, label: 'Substitutions', path: '/faculty/substitutions' },
+        { icon: Calendar, label: 'Academic Calendar', path: '/faculty/academic-calendar' },
 
         { icon: User, label: 'Profile', path: '/faculty/profile' },
     ];
@@ -146,19 +150,25 @@ const DashboardLayout = ({ children }) => {
                 zIndex: 30,
                 position: 'relative'
             }}>
-                {/* Logo Section */}
-                <div style={{ display: 'flex', alignItems: 'center' }}>
+                {/* Logo Section & Hamburger */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                    <button
+                        className="show-on-mobile"
+                        onClick={() => setIsSidebarOpen(!isSidebarOpen)}
+                        style={{ background: 'transparent', border: 'none', color: 'var(--color-text-main)', cursor: 'pointer', padding: 0 }}
+                    >
+                        {window.innerWidth >= 1024 ? null : (isSidebarOpen ? <X size={20} /> : <Menu size={20} />)}
+                    </button>
                     <img
                         src="/logo.png"
                         alt="VoxLog Logo"
                         style={{
                             height: '40px',
                             width: 'auto',
-                            marginRight: '0.75rem',
                             objectFit: 'contain'
                         }}
                     />
-                    <h2 style={{
+                    <h2 className="hide-on-mobile" style={{
                         fontSize: '1.25rem',
                         fontWeight: 700,
                         color: 'var(--color-primary)',
@@ -264,15 +274,24 @@ const DashboardLayout = ({ children }) => {
 
             {/* Main Content Wrapper */}
             <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+                {/* Mobile Overlay */}
+                {isSidebarOpen && (
+                    <div
+                        className="mobile-overlay show-on-mobile"
+                        onClick={() => setIsSidebarOpen(false)}
+                    />
+                )}
+
                 {/* Sidebar */}
                 <motion.div
-                    animate={{ width: isSidebarOpen ? 260 : 80 }}
+                    className={`sidebar-wrapper ${isSidebarOpen ? 'open' : ''}`}
+                    animate={{ width: window.innerWidth >= 1024 ? 260 : (isSidebarOpen ? 260 : 0) }}
                     style={{
                         background: 'var(--color-surface)',
                         borderRight: '1px solid var(--color-border)',
                         display: 'flex',
                         flexDirection: 'column',
-                        zIndex: 20
+                        zIndex: 50 // Increased to sit above the mobile overlay
                     }}
                 >
                     {/* Navigation */}
@@ -283,8 +302,11 @@ const DashboardLayout = ({ children }) => {
                                 icon={item.icon}
                                 label={item.label}
                                 active={location.pathname === item.path}
-                                collapsed={!isSidebarOpen}
-                                onClick={() => navigate(item.path)}
+                                collapsed={window.innerWidth >= 1024 ? false : !isSidebarOpen}
+                                onClick={() => {
+                                    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+                                    navigate(item.path);
+                                }}
                             />
                         ))}
                     </div>

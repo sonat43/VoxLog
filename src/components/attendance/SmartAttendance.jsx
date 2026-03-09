@@ -5,7 +5,7 @@ import { getHeadcount, processRollCall, saveAttendanceSession } from '../../serv
 import { getStudentsBySemester } from '../../services/academicService';
 import { useAuth } from '../../context/AuthContext';
 
-const SmartAttendance = ({ course, onClose }) => {
+const SmartAttendance = ({ program, onClose }) => {
     const { user } = useAuth();
     const [step, setStep] = useState('camera'); // 'camera', 'headcount', 'voice', 'rollcall', 'preview'
     const [loading, setLoading] = useState(false);
@@ -45,7 +45,7 @@ const SmartAttendance = ({ course, onClose }) => {
 
     const fetchStudents = async () => {
         try {
-            const data = await getStudentsBySemester(course.semesterId);
+            const data = await getStudentsBySemester(program.semesterId);
 
             // Sort Students Alphabetically by name (displayName)
             // Note: Use a case-insensitive localeCompare for best results
@@ -169,6 +169,9 @@ const SmartAttendance = ({ course, onClose }) => {
     };
 
     const startRecording = async () => {
+        transcriptRef.current = "";
+        setTranscribedText("");
+        setRecognitionStatus("idle");
         try {
             const s = await navigator.mediaDevices.getUserMedia({ audio: true });
             const recorder = new MediaRecorder(s);
@@ -395,41 +398,43 @@ const SmartAttendance = ({ course, onClose }) => {
         if (!text) return [];
         const wordToNum = {
             'zero': '0', 'one': '1', 'won': '1', 'on': '1', 'o': '1', 'two': '2', 'to': '2', 'too': '2', 'do': '2',
-            'three': '3', 'tree': '3', 'the': '3', 'four': '4', 'for': '4', 'fore': '4', 'five': '5', 'fine': '5',
-            'fire': '5', 'six': '6', 'sex': '6', 'sick': '6', 'seven': '7', 'heaven': '7', 'eight': '8', 'ate': '8',
-            'h': '8', 'nine': '9', 'night': '9', 'line': '9', 'ten': '10', 'then': '10', 'pen': '10',
+            'tu': '2', 'true': '2', 'three': '3', 'tree': '3', 'the': '3', 'free': '3', 'four': '4', 'for': '4',
+            'fore': '4', 'or': '4', 'five': '5', 'fine': '5', 'fire': '5', 'hi': '5', 'high': '5', 'six': '6',
+            'sex': '6', 'sick': '6', 'seven': '7', 'heaven': '7', 'eight': '8', 'ate': '8', 'h': '8', 'nine': '9',
+            'night': '9', 'line': '9', 'mine': '9', 'ten': '10', 'then': '10', 'pen': '10', 'tin': '10',
             'eleven': '11', 'twelve': '12', 'thirteen': '13', 'fourteen': '14',
             'fifteen': '15', 'sixteen': '16', 'seventeen': '17', 'eighteen': '18',
-            'nineteen': '19', 'twenty': '20'
+            'nineteen': '19', 'twenty': '20', 'twentyone': '21', 'twentytwo': '22',
+            'twentythree': '23', 'twentyfour': '24', 'twentyfive': '25'
         };
 
-        const validRolls = students.map(s => s.virtualRollNo);
+        const validRolls = students.map(s => String(s.virtualRollNo).trim());
 
-        const cleanText = text.toLowerCase().replace(/[,.]/g, ' ').replace(/\s+next\s+/g, ' ');
+        const cleanText = text.toLowerCase().replace(/[,.-]/g, ' ').replace(/\s+and\s+/g, ' ').replace(/\s+next\s+/g, ' ');
         const extracted = new Set();
 
-        // 1. Process words/tokens
-        const rawWords = cleanText.split(/\s+/);
-        rawWords.forEach(word => {
-            const alphaOnly = word.replace(/[^a-z]/g, '');
-            const digitsOnly = word.replace(/[^0-9]/g, '');
-
-            if (wordToNum[alphaOnly]) {
-                extracted.add(wordToNum[alphaOnly]);
-            } else if (digitsOnly.length > 0) {
-                // Smart splitting logic: if "12" is valid, keep it. Else split to ["1", "2"]
-                const val = String(parseInt(digitsOnly));
-                if (validRolls.length > 0 && !validRolls.includes(val) && digitsOnly.length > 1) {
-                    for (let char of digitsOnly) {
-                        extracted.add(char);
-                    }
-                } else {
-                    extracted.add(val);
+        // 1. Explicit Digit Extraction
+        const digitMatches = cleanText.match(/\d+/g) || [];
+        digitMatches.forEach(numStr => {
+            const val = String(parseInt(numStr, 10));
+            if (validRolls.length > 0 && !validRolls.includes(val) && numStr.length > 1) {
+                for (let char of numStr) {
+                    if (validRolls.includes(char) || validRolls.length === 0) extracted.add(char);
                 }
+            } else {
+                extracted.add(val);
             }
         });
 
-        // 2. Global cleanup: Ensure everything in the set is an actual valid roll if any are loaded
+        // 2. Process words/tokens for number mappings
+        const rawWords = cleanText.split(/\s+/);
+        rawWords.forEach(word => {
+            const alphaOnly = word.replace(/[^a-z]/g, '');
+            if (wordToNum[alphaOnly]) {
+                extracted.add(wordToNum[alphaOnly]);
+            }
+        });
+
         if (validRolls.length > 0) {
             return Array.from(extracted).filter(r => validRolls.includes(r));
         }
@@ -499,12 +504,12 @@ const SmartAttendance = ({ course, onClose }) => {
             const presentStudentIds = Object.keys(attendanceMap).filter(id => attendanceMap[id] === 'Present');
 
             await saveAttendanceSession({
-                subjectId: course.subjectId,
-                semesterId: course.semesterId,
-                subjectName: course.name || course.subjectName,
-                section: course.section || 'N/A',
-                periodIndex: course.periodIndex,
-                timeRange: course.timeRange,
+                courseId: program.courseId,
+                semesterId: program.semesterId,
+                courseName: program.name || program.courseName,
+                section: program.section || 'N/A',
+                periodIndex: program.periodIndex,
+                timeRange: program.timeRange,
                 dateString: new Date().toISOString().split('T')[0],
                 mode: 'smart',
                 confidence: 100, // Manual review done
@@ -555,6 +560,7 @@ const SmartAttendance = ({ course, onClose }) => {
         // Clear audio evidence and transcription
         setEvidence(prev => ({ ...prev, audio: null }));
         setTranscribedText("");
+        transcriptRef.current = ""; // Reset ref so next record is fully clean
         setRecognizedRollNumbers([]);
         if (recordedAudioUrl) {
             URL.revokeObjectURL(recordedAudioUrl);
@@ -569,13 +575,13 @@ const SmartAttendance = ({ course, onClose }) => {
         <div style={{ padding: '1rem', color: 'var(--color-text-main)' }}>
             <div style={{ marginBottom: '1.5rem', borderBottom: '1px solid var(--color-border)', paddingBottom: '1rem' }}>
                 <div style={{ fontSize: '1.25rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                    {course?.name}
+                    {program?.name}
                     <span style={{ fontSize: '0.8rem', background: 'rgba(59, 130, 246, 0.2)', color: '#60a5fa', padding: '0.2rem 0.6rem', borderRadius: '0.5rem', textTransform: 'uppercase' }}>
-                        Period {course?.periodIndex !== undefined ? course.periodIndex + 1 : '?'}
+                        Period {program?.periodIndex !== undefined ? program.periodIndex + 1 : '?'}
                     </span>
                 </div>
                 <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                    {course?.code} • Section {course?.section || 'N/A'}
+                    {program?.code} • Section {program?.section || 'N/A'}
                 </div>
             </div>
             {error && (
@@ -871,7 +877,7 @@ const SmartAttendance = ({ course, onClose }) => {
                             </div>
                         )}
 
-                        <div style={{ maxHeight: '300px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1.5rem' }}>
+                        <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1.5rem' }}>
                             {students.map(student => (
                                 <div key={student.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

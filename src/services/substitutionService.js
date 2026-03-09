@@ -71,10 +71,10 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
         const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
         const dayName = days[dateObj.getDay()];
 
-        // Optimization: Fetch all assignments once to map Subject -> Faculty
+        // Optimization: Fetch all assignments once to map Course -> Faculty
         const allAssignments = await getFacultyAssignments();
-        const subjectFacultyMap = {};
-        allAssignments.forEach(a => subjectFacultyMap[a.subjectId] = a.facultyId);
+        const courseFacultyMap = {};
+        allAssignments.forEach(a => courseFacultyMap[a.courseId] = a.facultyId);
 
         // Fetch all semesters to check timetables
         const semesters = await getSemesters();
@@ -85,9 +85,9 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
 
             const slot = schedule[dayName].find(s => s.periodIndex === periodIndex);
 
-            // Check if this slot has a subject AND a faculty assigned
-            if (slot && slot.subjectId) {
-                const facultyId = subjectFacultyMap[slot.subjectId];
+            // Check if this slot has a course AND a faculty assigned
+            if (slot && slot.courseId) {
+                const facultyId = courseFacultyMap[slot.courseId];
 
                 // If a faculty is found, MARK THEM AS BUSY
                 // But only if they aren't already marked as 'On Leave' (Leave takes precedence logic? Or maybe Leave explains why they need a sub?)
@@ -97,7 +97,7 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
                     if (facultyStatusMap[facultyId].status !== 'On Leave') {
                         facultyStatusMap[facultyId] = {
                             status: 'Busy',
-                            reason: `Class: ${slot.subjectname} (${sem.semesterNo === 1 ? '1st' : sem.semesterNo + 'th'} Sem)`
+                            reason: `Class: ${slot.coursename} (${sem.semesterNo === 1 ? '1st' : sem.semesterNo + 'th'} Sem)`
                         };
                     }
                 }
@@ -118,7 +118,7 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
                 if (facultyStatusMap[data.substituteFacultyId].status !== 'On Leave') {
                     facultyStatusMap[data.substituteFacultyId] = {
                         status: 'Busy',
-                        reason: `Substituting for ${data.subjectName || 'another class'}`
+                        reason: `Substituting for ${data.courseName || 'another class'}`
                     };
                 }
             }
@@ -147,10 +147,11 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
 };
 
 export const createSubstitution = async (data) => {
-    // data: { date, periodIndex, timeRange, classId, subjectId, originalFacultyId, substituteFacultyId, requestedBy }
+    // data: { date, periodIndex, timeRange, classId, courseId, originalFacultyId, substituteFacultyId, requestedBy }
     try {
         await addDoc(collection(db, "substitutions"), {
             ...data,
+            subjectId: data.courseId, // Ensure DB maps UI courseId to subjectId
             status: 'confirmed', // Auto-confirm for now
             createdAt: serverTimestamp()
         });
@@ -159,7 +160,7 @@ export const createSubstitution = async (data) => {
         await addDoc(collection(db, "notifications"), {
             userId: data.substituteFacultyId,
             title: "New Substitution Assigned",
-            message: `You have been assigned a substitution for ${data.subjectName} on ${data.date} (${data.timeRange}).`,
+            message: `You have been assigned a substitution for ${data.courseName} on ${data.date} (${data.timeRange}).`,
             type: "substitution",
             read: false,
             createdAt: serverTimestamp(),
@@ -187,7 +188,7 @@ export const createSubstitution = async (data) => {
                                 <p style="font-size: 16px; margin-top: 0;">Dear <strong>${userData.displayName || 'Faculty Member'}</strong>,</p>
                                 
                                 <p style="font-size: 16px; line-height: 1.6;">
-                                    You have one added class today on this class ${data.subjectName} due to a faculty leave. 
+                                    You have one added class today on this class ${data.courseName} due to a faculty leave. 
                                     Please ensure you are present at the scheduled time.
                                 </p>
                                 
@@ -195,8 +196,8 @@ export const createSubstitution = async (data) => {
                                 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 25px 0;">
                                     <table style="width: 100%; border-collapse: collapse;">
                                         <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 80px;">Subject</td>
-                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.subjectName}</td>
+                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 80px;">Course</td>
+                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.courseName}</td>
                                         </tr>
                                         <tr>
                                             <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Date</td>
@@ -227,7 +228,7 @@ export const createSubstitution = async (data) => {
 
                     await sendEmailNotification(
                         userData.email,
-                        `✅ Action Required: Substitution for ${data.subjectName}`,
+                        `✅ Action Required: Substitution for ${data.courseName}`,
                         htmlEmail
                     );
                 }
@@ -245,6 +246,7 @@ export const createSubstitution = async (data) => {
 
 export const getSubstitutionsForFaculty = async (facultyId, dateString = null) => {
     try {
+        let q;
         if (dateString) {
             q = query(
                 collection(db, "substitutions"),
@@ -260,7 +262,14 @@ export const getSubstitutionsForFaculty = async (facultyId, dateString = null) =
         }
 
         const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return querySnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                courseId: data.courseId || data.subjectId
+            };
+        });
 
     } catch (error) {
         console.error("Error fetching substitutions:", error);
@@ -291,34 +300,45 @@ export const getAllTodaysSubstitutions = async (dateString) => {
             where("date", "==", dateString)
         );
         const snap = await getDocs(q);
-        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return snap.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                ...data,
+                courseId: data.courseId || data.subjectId
+            };
+        });
     } catch (error) {
         console.error("Error fetching all today's substitutions:", error);
         return [];
     }
 };
 
-export const checkSubstitutionForAttendance = async (dateString, periodIndex, section, subjectId) => {
+export const checkSubstitutionForAttendance = async (dateString, periodIndex, section, courseId) => {
     // Helper to find if there is a substitution for a specific class slot
     // 'section' is tricky because substitutions stores 'classId' (semesterId).
-    // The AttendanceModal usually knows the semesterId (course.semesterId).
+    // The AttendanceModal usually knows the semesterId (program.semesterId).
     // We'll trust the caller to pass enough info or we query loosely.
 
     // For specific authentication check:
-    // We need to find if there is a substitution doc for: date, periodIndex, subjectId (or classId)
+    // We need to find if there is a substitution doc for: date, periodIndex, courseId (or classId)
     // AND return the substituteFacultyId.
 
     try {
-        // We'll search by date + subjectId + periodIndex to be precise
+        // We'll search by date + subjectId (UI courseId) + periodIndex to be precise
         const q = query(
             collection(db, "substitutions"),
             where("date", "==", dateString),
-            where("subjectId", "==", subjectId),
+            where("subjectId", "==", courseId), // Maps from UI courseId
             where("periodIndex", "==", periodIndex)
         );
         const snap = await getDocs(q);
         if (!snap.empty) {
-            return snap.docs[0].data();
+            const data = snap.docs[0].data();
+            return {
+                ...data,
+                courseId: data.courseId || data.subjectId
+            };
         }
         return null;
     } catch (error) {
@@ -360,7 +380,7 @@ export const getClassesNeedingSubstitution = async (dateString) => {
                     dateString,
                     slot.periodIndex,
                     null,
-                    slot.subjectId
+                    slot.courseId
                 );
 
                 needsSubstitution.push({

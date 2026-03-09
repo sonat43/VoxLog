@@ -28,7 +28,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
     const [semesters, setSemesters] = useState([]);
     const [manualSemesterId, setManualSemesterId] = useState('');
     const [manualPeriod, setManualPeriod] = useState('');
-    const [manualSubjectName, setManualSubjectName] = useState('');
+    const [manualCourseName, setManualCourseName] = useState('');
 
     // Initial Load
     useEffect(() => {
@@ -111,7 +111,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
 
         const dummyClass = {
             semesterId: manualSemesterId,
-            subjectname: manualSubjectName || `Manual Entry (${selectedSem?.semesterNo || '?'}th Sem)`,
+            coursename: manualCourseName || `Manual Entry (${selectedSem?.semesterNo || '?'}th Sem)`,
             periodIndex: Number(manualPeriod),
             timeRange: "Manual Slot", // We could map period index to time logic if strict
             originalFacultyId: null, // No specific original faculty
@@ -136,8 +136,8 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                 periodIndex: selectedImpactedClass.periodIndex,
                 timeRange: selectedImpactedClass.timeRange,
                 classId: selectedImpactedClass.semesterId, // Use semesterId as classId
-                subjectId: selectedImpactedClass.subjectId,
-                subjectName: selectedImpactedClass.subjectname,
+                courseId: selectedImpactedClass.courseId,
+                courseName: selectedImpactedClass.coursename,
                 originalFacultyId: selectedImpactedClass.originalFacultyId,
                 substituteFacultyId: selectedSubstitute.uid || selectedSubstitute.id,
                 substituteName: selectedSubstitute.displayName,
@@ -255,7 +255,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                         {isMyClass && <div style={{ position: 'absolute', top: 12, right: 12, fontSize: '0.7rem', background: '#14b8a6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>Me</div>}
 
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
-                                            <div style={{ fontWeight: 600, color: 'white', fontSize: '1rem' }}>{item.subjectname}</div>
+                                            <div style={{ fontWeight: 600, color: 'white', fontSize: '1rem' }}>{item.coursename}</div>
                                             {item.status === 'Covered' ? (
                                                 <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: '#14b8a6', color: 'white' }}>Covered</span>
                                             ) : (
@@ -295,7 +295,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                             <>
                                 <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                     <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Finding substitutes for:</div>
-                                    <div style={{ color: 'white', fontWeight: 600 }}>{selectedImpactedClass.subjectname}</div>
+                                    <div style={{ color: 'white', fontWeight: 600 }}>{selectedImpactedClass.coursename}</div>
                                     <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{selectedImpactedClass.timeRange}</div>
                                 </div>
 
@@ -414,7 +414,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                     >
                                         <option value="">-- Select Class --</option>
                                         {semesters.map(sem => (
-                                            <option key={sem.id} value={sem.id}>Semester {sem.semesterNo} ({sem.courseName || 'Unknown Course'})</option>
+                                            <option key={sem.id} value={sem.id}>Semester {sem.semesterNo} ({sem.programName || 'Unknown Program'})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -438,12 +438,12 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                 </div>
 
                                 <div style={{ marginBottom: '24px' }}>
-                                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px' }}>Select Subject (Optional Metadata)</label>
+                                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px' }}>Select Course (Optional Metadata)</label>
                                     <input
                                         type="text"
                                         placeholder="e.g. Data Structures (Leave blank if unknown)"
-                                        value={manualSubjectName}
-                                        onChange={(e) => setManualSubjectName(e.target.value)}
+                                        value={manualCourseName}
+                                        onChange={(e) => setManualCourseName(e.target.value)}
                                         style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#1e293b', border: '1px solid #475569', color: 'white' }}
                                     />
                                 </div>

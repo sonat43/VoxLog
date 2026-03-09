@@ -96,8 +96,8 @@ const LeaveApprovals = () => {
     };
 
     return (
-        <div style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+        <div className="mobile-p-4" style={{ padding: '2rem', maxWidth: '1280px', margin: '0 auto' }}>
+            <div className="flex-col-mobile" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '1.875rem', fontWeight: 700, color: 'white', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                         <Calendar size={28} color="#ec4899" /> Leave Approvals
@@ -107,6 +107,8 @@ const LeaveApprovals = () => {
 
                 <div style={{
                     display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '0.25rem',
                     background: '#1f2937',
                     padding: '0.25rem',
                     borderRadius: '0.5rem',
@@ -160,7 +162,7 @@ const LeaveApprovals = () => {
                                         {sub.slotTime.split(' - ')[0]}
                                     </span>
                                 </div>
-                                <h3 style={{ color: 'white', fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.25rem 0' }}>{sub.subjectName}</h3>
+                                <h3 style={{ color: 'white', fontSize: '1.1rem', fontWeight: 700, margin: '0 0 0.25rem 0' }}>{sub.courseName}</h3>
                                 <p style={{ fontSize: '0.9rem', color: '#d1d5db', margin: 0 }}>
                                     Original: Fac {sub.originalFacultyId.substr(0, 4)}
                                 </p>
@@ -210,6 +212,7 @@ const LeaveApprovals = () => {
                             key={req.id}
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
+                            className="flex-col-mobile"
                             style={{
                                 background: 'rgba(31, 41, 55, 0.6)',
                                 backdropFilter: 'blur(4px)',
@@ -217,11 +220,12 @@ const LeaveApprovals = () => {
                                 borderRadius: '0.75rem',
                                 padding: '1.5rem',
                                 display: 'flex',
+                                gap: '1rem',
                                 justifyContent: 'space-between',
-                                alignItems: 'center'
+                                alignItems: 'flex-start'
                             }}
                         >
-                            <div style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
+                            <div className="flex-col-mobile" style={{ display: 'flex', gap: '1.5rem', alignItems: 'flex-start' }}>
                                 <div style={{
                                     width: '48px', height: '48px',
                                     borderRadius: '50%',
@@ -368,7 +372,7 @@ const LeaveApprovals = () => {
                                         date: selectedRequest.startDate,
                                         originalFacultyId: selectedRequest.facultyId,
                                         substituteFacultyId: subId,
-                                        subjectId: 'demo_subject', // ideally picked from list
+                                        courseId: 'demo_course', // ideally picked from list
                                         slot: '10:00 - 11:00'
                                     });
                                     setToast({ message: "Substitute assigned successfully", type: "success" });

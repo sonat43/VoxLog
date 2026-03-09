@@ -4,16 +4,18 @@ import { getTimetable } from '../services/timetableService';
 import AttendanceModal from '../components/dashboard/AttendanceModal';
 import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar, CheckCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { getMySubjects, getDashboardStats, getTodayAttendanceSessions, getFacultyClassAttendanceAverages, getStudentBirthdaysToday } from '../services/facultyService';
+import { getMyCourses, getDashboardStats, getTodayAttendanceSessions, getFacultyClassAttendanceAverages, getStudentBirthdaysToday } from '../services/facultyService';
 import { getSubstitutionsForFaculty } from '../services/substitutionService';
 import { useAuth } from '../context/AuthContext';
 import { Bell } from 'lucide-react';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
+import { checkIfHoliday } from '../services/calendarService';
+
 const FacultyDashboard = () => {
     const { user } = useAuth();
     const navigate = useNavigate();
-    const [subjects, setSubjects] = useState([]);
+    const [courses, setCourses] = useState([]);
     const [dashboardStats, setDashboardStats] = useState({
         atRiskCount: 0,
         pendingGrading: 0,
@@ -34,16 +36,17 @@ const FacultyDashboard = () => {
     const [selectedDay, setSelectedDay] = useState(days[new Date().getDay()] === 'Sunday' ? 'Monday' : days[new Date().getDay()]);
     const [notifications, setNotifications] = useState([]);
     const [dailyAttendanceStatus, setDailyAttendanceStatus] = useState(null);
+    const [holidayInfo, setHolidayInfo] = useState({ isHoliday: false, reason: null });
 
     useEffect(() => {
         const fetchDashboardData = async () => {
             if (user?.uid) {
-                // 1. Fetch Subjects and Timetables (Critical for Weekly Schedule)
+                // 1. Fetch Courses and Timetables (Critical for Weekly Schedule)
                 try {
-                    const mySubjects = await getMySubjects(user.uid);
-                    setSubjects(mySubjects);
+                    const myCourses = await getMyCourses(user.uid);
+                    setCourses(myCourses);
 
-                    const uniqueSemesterIds = [...new Set(mySubjects.map(s => s.semesterId).filter(Boolean))];
+                    const uniqueSemesterIds = [...new Set(myCourses.map(s => s.semesterId).filter(Boolean))];
                     const timetableMap = {};
                     await Promise.all(uniqueSemesterIds.map(async (semId) => {
                         const schedule = await getTimetable(semId);
@@ -53,7 +56,7 @@ const FacultyDashboard = () => {
                     }));
                     setTimetables(timetableMap);
                 } catch (error) {
-                    console.error("Error fetching subjects or timetables:", error);
+                    console.error("Error fetching courses or timetables:", error);
                 }
 
                 // 2. Fetch Aggregated Stats (Optional - might fail if indexes missing)
@@ -122,16 +125,16 @@ const FacultyDashboard = () => {
             const classes = [];
 
             // A. Regular
-            if (Array.isArray(subjects)) {
-                subjects.forEach(subject => {
-                    if (subject.semesterId && timetables[subject.semesterId] && timetables[subject.semesterId][currentDayName]) {
-                        timetables[subject.semesterId][currentDayName].forEach(slot => {
-                            if (slot.subjectId === subject.id) {
+            if (Array.isArray(courses)) {
+                courses.forEach(course => {
+                    if (course.semesterId && timetables[course.semesterId] && timetables[course.semesterId][currentDayName]) {
+                        timetables[course.semesterId][currentDayName].forEach(slot => {
+                            if (slot.courseId === course.id) {
                                 const isTaken = attended.some(s =>
-                                    s.subjectId === subject.id &&
+                                    s.courseId === course.id &&
                                     s.periodIndex === slot.periodIndex
                                 );
-                                classes.push({ ...subject, ...slot, isSubstitution: false, isAttendanceTaken: isTaken });
+                                classes.push({ ...course, ...slot, isSubstitution: false, isAttendanceTaken: isTaken });
                             }
                         });
                     }
@@ -142,14 +145,14 @@ const FacultyDashboard = () => {
             const todaysSubs = allSubs.filter(s => s.date === dateString);
             todaysSubs.forEach(sub => {
                 const isTaken = attended.some(s =>
-                    s.subjectId === sub.subjectId &&
+                    s.courseId === sub.courseId &&
                     s.periodIndex === sub.periodIndex &&
                     s.isSubstitution
                 );
                 classes.push({
                     id: sub.id,
-                    name: sub.subjectName || 'Substituted Class',
-                    code: sub.subjectCode || 'SUB',
+                    name: sub.courseName || 'Substituted Class',
+                    code: sub.courseCode || 'SUB',
                     semesterNo: sub.semesterNo || '?',
                     timeRange: sub.timeRange,
                     periodIndex: sub.periodIndex,
@@ -157,7 +160,7 @@ const FacultyDashboard = () => {
                     isAttendanceTaken: isTaken,
                     originalFacultyName: sub.originalFacultyName,
                     semesterId: sub.semesterId || sub.classId,
-                    subjectId: sub.subjectId,
+                    courseId: sub.courseId,
                     date: sub.date,
                     status: 'active'
                 });
@@ -209,6 +212,10 @@ const FacultyDashboard = () => {
                 } else {
                     setDailyAttendanceStatus(null);
                 }
+
+                // Check Holiday Status
+                const hInfo = await checkIfHoliday(dateString);
+                setHolidayInfo(hInfo);
             } catch (e) {
                 console.error("Error fetching daily attendance status:", e);
             }
@@ -217,16 +224,15 @@ const FacultyDashboard = () => {
         fetchData();
         fetchNotifications();
         fetchDailyAttendance();
-    }, [subjects, timetables, user, showAttendanceModal]);
+    }, [courses, timetables, user, showAttendanceModal]);
 
     const stats = [
-        { title: 'My Courses', value: (subjects?.length || 0).toString(), icon: Book, color: 'var(--color-primary)', bg: 'rgba(59, 130, 246, 0.1)' },
-        { title: 'Syllabus', value: `${dashboardStats?.syllabusProgress || 0}%`, icon: BookOpen, color: 'var(--color-success)', bg: 'rgba(34, 197, 94, 0.1)', trend: 'Completed' },
+        { title: 'My Programs', value: (courses?.length || 0).toString(), icon: Book, color: 'var(--color-primary)', bg: 'rgba(59, 130, 246, 0.1)' },
         { title: 'At-Risk', value: (dashboardStats?.atRiskCount || 0).toString(), icon: AlertTriangle, color: 'var(--color-error)', bg: 'rgba(239, 68, 68, 0.1)', subtitle: 'Students' },
     ];
 
     const quickActions = [
-        { title: 'Course Tracker', desc: 'Update syllabus & topics', icon: BookOpen, path: '/faculty/academic-progress', color: 'var(--color-primary)' },
+        { title: 'Program Tracker', desc: 'Update syllabus & topics', icon: BookOpen, path: '/faculty/academic-progress', color: 'var(--color-primary)' },
         { title: 'Class Timetables', desc: 'View schedules & subs', icon: Calendar, path: '/faculty/timetables', color: 'var(--color-accent)' },
     ];
 
@@ -344,6 +350,41 @@ const FacultyDashboard = () => {
                     </div>
                 </motion.div>
 
+                {/* Holiday Banner */}
+                {holidayInfo.isHoliday && (
+                    <motion.div
+                        variants={itemVariants}
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        style={{
+                            background: 'linear-gradient(to right, rgba(168, 85, 247, 0.15), rgba(168, 85, 247, 0.05))',
+                            border: '1px solid rgba(168, 85, 247, 0.3)',
+                            borderRadius: '1.5rem', padding: '1.5rem',
+                            display: 'flex', alignItems: 'center', gap: '1.5rem',
+                            color: '#d8b4fe',
+                            boxShadow: '0 4px 20px rgba(168, 85, 247, 0.1)'
+                        }}
+                    >
+                        <div style={{
+                            width: '48px', height: '48px',
+                            background: 'rgba(168, 85, 247, 0.2)',
+                            borderRadius: '50%',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            flexShrink: 0
+                        }}>
+                            <Calendar size={24} color="#c084fc" />
+                        </div>
+                        <div>
+                            <h3 style={{ margin: '0 0 0.25rem 0', fontWeight: 800, fontSize: '1.25rem', color: '#e9d5ff' }}>
+                                Designated Holiday: {holidayInfo.reason}
+                            </h3>
+                            <p style={{ margin: 0, fontSize: '0.95rem', opacity: 0.9 }}>
+                                Academic operations are suspended. Attendance taking is disabled for today.
+                            </p>
+                        </div>
+                    </motion.div>
+                )}
+
                 {/* Today's Classes - Action Center */}
                 {todaysClasses.length > 0 ? (
                     <motion.div
@@ -421,35 +462,43 @@ const FacultyDashboard = () => {
                                         </div>
                                     </div>
                                     <motion.button
-                                        whileHover={!session.isAttendanceTaken ? { scale: 1.05 } : {}}
-                                        whileTap={!session.isAttendanceTaken ? { scale: 0.95 } : {}}
+                                        whileHover={(!session.isAttendanceTaken && !holidayInfo.isHoliday) ? { scale: 1.05 } : {}}
+                                        whileTap={(!session.isAttendanceTaken && !holidayInfo.isHoliday) ? { scale: 0.95 } : {}}
                                         onClick={() => {
-                                            if (!session.isAttendanceTaken) {
+                                            if (!session.isAttendanceTaken && !holidayInfo.isHoliday) {
                                                 setSelectedClassForAttendance(session);
                                                 setShowAttendanceModal(true);
                                             }
                                         }}
-                                        disabled={session.isAttendanceTaken}
+                                        disabled={session.isAttendanceTaken || holidayInfo.isHoliday}
                                         style={{
                                             background: session.isAttendanceTaken
                                                 ? 'rgba(16, 185, 129, 0.1)'
-                                                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                            border: session.isAttendanceTaken ? '1px solid rgba(16, 185, 129, 0.3)' : 'none',
+                                                : holidayInfo.isHoliday
+                                                    ? 'rgba(255, 255, 255, 0.05)'
+                                                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                            border: session.isAttendanceTaken ? '1px solid rgba(16, 185, 129, 0.3)' : (holidayInfo.isHoliday ? '1px solid rgba(255,255,255,0.1)' : 'none'),
                                             borderRadius: '1rem',
                                             padding: '0.75rem 1.5rem',
-                                            color: session.isAttendanceTaken ? '#34d399' : 'white',
+                                            color: session.isAttendanceTaken ? '#34d399' : (holidayInfo.isHoliday ? '#94a3b8' : 'white'),
                                             fontWeight: 600,
                                             fontSize: '1rem',
-                                            cursor: session.isAttendanceTaken ? 'default' : 'pointer',
-                                            boxShadow: session.isAttendanceTaken ? 'none' : '0 4px 15px rgba(16, 185, 129, 0.3)',
+                                            cursor: (session.isAttendanceTaken || holidayInfo.isHoliday) ? 'default' : 'pointer',
+                                            boxShadow: (session.isAttendanceTaken || holidayInfo.isHoliday) ? 'none' : '0 4px 15px rgba(16, 185, 129, 0.3)',
                                             display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            whiteSpace: 'nowrap'
+                                            whiteSpace: 'nowrap',
+                                            opacity: holidayInfo.isHoliday ? 0.5 : 1
                                         }}
                                     >
                                         {session.isAttendanceTaken ? (
                                             <>
                                                 <CheckCircle size={18} />
                                                 Completed
+                                            </>
+                                        ) : holidayInfo.isHoliday ? (
+                                            <>
+                                                <Calendar size={18} />
+                                                Holiday
                                             </>
                                         ) : (
                                             <>
@@ -554,18 +603,18 @@ const FacultyDashboard = () => {
                                 const dayClasses = [];
 
                                 // A. Regular Classes
-                                subjects.forEach(subject => {
+                                courses.forEach(course => {
                                     // DEBUG LOGS (Active)
-                                    // console.log("WeeklySchedule: Processing Subject:", subject.name, subject.id, "Sem:", subject.semesterId);
-                                    if (subject.semesterId && timetables[subject.semesterId]) {
-                                        const daySlots = timetables[subject.semesterId][selectedDay];
-                                        // console.log(`WeeklySchedule: Slots for ${selectedDay} (Sem ${subject.semesterId}):`, daySlots ? daySlots.length : 'None');
+                                    // console.log("WeeklySchedule: Processing Course:", course.name, course.id, "Sem:", course.semesterId);
+                                    if (course.semesterId && timetables[course.semesterId]) {
+                                        const daySlots = timetables[course.semesterId][selectedDay];
+                                        // console.log(`WeeklySchedule: Slots for ${selectedDay} (Sem ${course.semesterId}):`, daySlots ? daySlots.length : 'None');
 
                                         if (daySlots) {
                                             daySlots.forEach(slot => {
-                                                // console.log(`  - Slot: ${slot.timeRange} | Subject: ${slot.subjectname} (${slot.subjectId}) vs My Subject: (${subject.id})`);
-                                                if (slot.subjectId === subject.id) {
-                                                    dayClasses.push({ ...subject, ...slot, isSubstitution: false });
+                                                // console.log(`  - Slot: ${slot.timeRange} | Course: ${slot.coursename} (${slot.courseId}) vs My Course: (${course.id})`);
+                                                if (slot.courseId === course.id) {
+                                                    dayClasses.push({ ...course, ...slot, isSubstitution: false });
                                                 }
                                             });
                                         }
@@ -574,6 +623,7 @@ const FacultyDashboard = () => {
 
                                 // B. Substitutions (For Selected Day THIS WEEK)
                                 // We need to determine the date of "This Week's [SelectedDay]"
+                                console.log(`[DEBUG] WeeklySchedule - Day: ${selectedDay}, Courses: ${courses.length}, Timetables loaded: ${Object.keys(timetables).length}`);
                                 const today = new Date();
                                 const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
                                 const currentDayIndex = today.getDay(); // 0-6
@@ -603,15 +653,15 @@ const FacultyDashboard = () => {
                                 relevantSubs.forEach(sub => {
                                     dayClasses.push({
                                         id: sub.id,
-                                        name: sub.subjectName || 'Substituted Class',
-                                        code: sub.subjectCode || 'SUB',
+                                        name: sub.courseName || 'Substituted Class',
+                                        code: sub.courseCode || 'SUB',
                                         semesterNo: sub.semesterNo || '?',
                                         timeRange: sub.timeRange,
                                         periodIndex: sub.periodIndex,
                                         isSubstitution: true,
                                         originalFacultyName: sub.originalFacultyName,
                                         semesterId: sub.semesterId || sub.classId,
-                                        subjectId: sub.subjectId,
+                                        courseId: sub.courseId,
                                         date: sub.date,
                                         status: 'active' // Ensure it appears in Attendance Modal
                                     });
@@ -623,6 +673,7 @@ const FacultyDashboard = () => {
                                 });
 
                                 if (dayClasses.length === 0) {
+                                    console.log(`[DEBUG] WeeklySchedule - No classes found for ${selectedDay}.`);
                                     return (
                                         <div style={{
                                             background: 'rgba(30, 41, 59, 0.4)',
@@ -634,6 +685,7 @@ const FacultyDashboard = () => {
                                         </div>
                                     );
                                 }
+                                console.log(`[DEBUG] WeeklySchedule - Classes found for ${selectedDay}:`, dayClasses.map(c => c.name));
 
                                 return dayClasses.map((cls, idx) => (
                                     <motion.div
@@ -778,7 +830,7 @@ const FacultyDashboard = () => {
                                         classAverages.map((avg, i) => (
                                             <div key={i}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.25rem' }}>
-                                                    <span style={{ color: 'var(--color-text-main)', fontSize: '0.9rem', fontWeight: 500 }}>{avg.subjectName}</span>
+                                                    <span style={{ color: 'var(--color-text-main)', fontSize: '0.9rem', fontWeight: 500 }}>{avg.courseName}</span>
                                                     <span style={{ color: avg.percentage < 75 ? '#ef4444' : '#10b981', fontSize: '0.9rem', fontWeight: 600 }}>{avg.percentage}%</span>
                                                 </div>
                                                 <div style={{ width: '100%', height: '8px', background: 'rgba(255,255,255,0.05)', borderRadius: '4px', overflow: 'hidden' }}>
@@ -846,7 +898,7 @@ const FacultyDashboard = () => {
                                         <div>
                                             <p style={{ margin: '0 0 0.25rem 0', color: 'var(--color-text-main)', fontWeight: 500 }}>{activity.title}</p>
                                             <p style={{ margin: 0, color: '#64748b', fontSize: '0.85rem' }}>
-                                                New Assessment in <span style={{ color: '#94a3b8' }}>{activity.subject}</span> • {new Date(activity.date).toLocaleDateString()}
+                                                New Assessment in <span style={{ color: '#94a3b8' }}>{activity.course}</span> • {new Date(activity.date).toLocaleDateString()}
                                             </p>
                                         </div>
                                     </div>
@@ -868,7 +920,7 @@ const FacultyDashboard = () => {
                     <AttendanceModal
                         isOpen={showAttendanceModal}
                         onClose={() => setShowAttendanceModal(false)}
-                        courses={[{ ...selectedClassForAttendance, status: 'active' }]}
+                        programs={[{ ...selectedClassForAttendance, status: 'active' }]}
                     />
                 )}
             </AnimatePresence >

@@ -4,7 +4,7 @@ import { Plus, Trash2, Save, Loader2, BookOpen, Sparkles, Edit2, X, Check } from
 import { getSyllabus, saveSyllabus } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 
-const SyllabusModal = ({ isOpen, onClose, subject }) => {
+const SyllabusModal = ({ isOpen, onClose, course }) => {
     const [topics, setTopics] = useState([]);
     const [loading, setLoading] = useState(false);
     const [saving, setSaving] = useState(false);
@@ -14,7 +14,7 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
     const [toast, setToast] = useState(null);
 
     useEffect(() => {
-        if (isOpen && subject) {
+        if (isOpen && course) {
             setSaving(false);
             fetchSyllabus();
         } else {
@@ -22,12 +22,12 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
             setNewTopic('');
             setSaving(false);
         }
-    }, [isOpen, subject]);
+    }, [isOpen, course]);
 
     const fetchSyllabus = async () => {
         setLoading(true);
         try {
-            const data = await getSyllabus(subject.id);
+            const data = await getSyllabus(course.id);
             if (data && data.topics) {
                 setTopics(data.topics);
             } else {
@@ -51,12 +51,12 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
     };
 
     const handleAutoGenerate = () => {
-        if (!subject?.name) return;
+        if (!course?.name) return;
 
-        const name = subject.name.toLowerCase();
+        const name = course.name.toLowerCase();
         let suggestedTopics = [];
 
-        // Dictionary of common subjects
+        // Dictionary of common courses
         if (name.includes('python')) {
             suggestedTopics = [
                 "Introduction to Python & Installation", "Variables, Data Types, and Operators",
@@ -98,9 +98,9 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
         } else {
             // Fallback Template
             suggestedTopics = [
-                `Unit 1: Introduction to ${subject.name}`,
-                `Unit 2: Core Concepts of ${subject.name}`,
-                `Unit 3: Advanced Topics in ${subject.name}`,
+                `Unit 1: Introduction to ${course.name}`,
+                `Unit 2: Core Concepts of ${course.name}`,
+                `Unit 3: Advanced Topics in ${course.name}`,
                 `Unit 4: Practical Applications`,
                 `Unit 5: Case Studies & Projects`
             ];
@@ -154,7 +154,7 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
 
             // Race the save operation against the timeout
             await Promise.race([
-                saveSyllabus(subject.id, topics),
+                saveSyllabus(course.id, topics),
                 timeoutPromise
             ]);
 
@@ -175,7 +175,7 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
     };
 
     return (
-        <SimpleModal isOpen={isOpen} onClose={onClose} title={`Manage Syllabus: ${subject?.name || ''}`}>
+        <SimpleModal isOpen={isOpen} onClose={onClose} title={`Manage Syllabus: ${course?.name || ''}`}>
             <div style={{ display: 'flex', flexDirection: 'column', height: '60vh' }}>
 
                 {/* Add Topic Input */}
@@ -208,7 +208,7 @@ const SyllabusModal = ({ isOpen, onClose, subject }) => {
                     <button
                         type="button"
                         onClick={handleAutoGenerate}
-                        title="Auto-Generate Topics based on Subject Name"
+                        title="Auto-Generate Topics based on Course Name"
                         style={{
                             padding: '0.75rem 1rem', borderRadius: '0.5rem',
                             background: 'rgba(139, 92, 246, 0.1)', border: '1px solid rgba(139, 92, 246, 0.2)',

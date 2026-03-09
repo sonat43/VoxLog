@@ -3,6 +3,9 @@ import { motion } from 'framer-motion';
 import { getMasterAttendanceReport } from '../../services/reportingService';
 import { fetchAllUsers } from '../../services/adminService';
 import Toast from '../../components/common/Toast';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { db } from '../../services/firebase';
+import { collection, addDoc } from 'firebase/firestore';
 
 const MasterAttendanceCalendar = () => {
     const [reportData, setReportData] = useState({});
@@ -62,6 +65,9 @@ const MasterAttendanceCalendar = () => {
             case 'Yellow': return { bg: 'rgba(234, 179, 8, 0.2)', border: '1px solid #eab308', text: 'L' };
             case 'Red': return { bg: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', text: 'A' };
             case 'Blue': return { bg: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', text: 'S' };
+            case 'Purple': return { bg: 'rgba(168, 85, 247, 0.2)', border: '1px solid #a855f7', text: 'H' };
+            case 'Orange': return { bg: 'rgba(249, 115, 22, 0.2)', border: '1px solid #f97316', text: 'E' };
+            case 'Teal': return { bg: 'rgba(20, 184, 166, 0.2)', border: '1px solid #14b8a6', text: 'Ev' };
             case 'Gray': return { bg: '#334155', border: 'none', text: cell.status === 'Weekend' ? '-' : '?' };
             default: return { bg: '#1e293b', border: 'none', text: '?' };
         }
@@ -72,10 +78,38 @@ const MasterAttendanceCalendar = () => {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
                 <div>
                     <h1 style={{ fontSize: '2rem', fontWeight: 700, color: 'white', marginBottom: '0.5rem' }}>Master Attendance Calendar</h1>
-                    <p style={{ color: '#94a3b8' }}>Overview of faculty attendance, leaves, and substitutions.</p>
+                    <p style={{ color: '#94a3b8' }}>Overview of faculty attendance, leaves, substitutions, and academic events.</p>
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
+                    {/* Dev/Test Button */}
+                    <button
+                        onClick={async () => {
+                            try {
+                                const todayStr = new Date().toISOString().split('T')[0];
+                                await addDoc(collection(db, "academic_events"), {
+                                    date: todayStr,
+                                    title: "Mock Holiday (Generated)",
+                                    type: "Holiday"
+                                });
+                                loadReport();
+                                alert("Generated holiday for today! Refreshing.");
+                            } catch (e) {
+                                console.log("Failed to add mock event:", e);
+                            }
+                        }}
+                        style={{
+                            padding: '10px 16px',
+                            background: '#a855f7',
+                            color: 'white',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                            fontWeight: 600
+                        }}
+                    >
+                        + Gen Mock Fest
+                    </button>
                     <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: '12px', padding: '4px' }}>
                         <button onClick={handlePrevWeek} style={{ padding: '8px', background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}>
                             <ChevronLeft size={20} />
@@ -104,10 +138,14 @@ const MasterAttendanceCalendar = () => {
                     <div style={{ width: '16px', height: '16px', background: 'rgba(239, 68, 68, 0.2)', border: '1px solid #ef4444', borderRadius: '4px' }}></div>
                     <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Absent</span>
                 </div>
-                {/* <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <div style={{ width: '16px', height: '16px', background: 'rgba(59, 130, 246, 0.2)', border: '1px solid #3b82f6', borderRadius: '4px' }}></div>
-                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Substituted</span>
-                </div> */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '16px', height: '16px', background: 'rgba(168, 85, 247, 0.2)', border: '1px solid #a855f7', borderRadius: '4px' }}></div>
+                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Holiday</span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <div style={{ width: '16px', height: '16px', background: 'rgba(249, 115, 22, 0.2)', border: '1px solid #f97316', borderRadius: '4px' }}></div>
+                    <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Exam</span>
+                </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginLeft: 'auto' }}>
                     <div style={{ width: '16px', height: '16px', background: '#334155', borderRadius: '4px' }}></div>
                     <span style={{ color: '#cbd5e1', fontSize: '0.9rem' }}>Pending / Weekend</span>
@@ -124,7 +162,7 @@ const MasterAttendanceCalendar = () => {
                             <tr style={{ background: '#1e293b' }}>
                                 <th style={{ padding: '16px', textAlign: 'left', color: '#94a3b8', borderBottom: '1px solid #334155', minWidth: '200px' }}>Faculty</th>
                                 {weekDates.map(date => (
-                                    <th key={date.toISOString()} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', borderBottom: '1px solid #334155', width: '100px' }}>
+                                    <th key={date.getTime()} style={{ padding: '16px', textAlign: 'center', color: '#94a3b8', borderBottom: '1px solid #334155', width: '100px' }}>
                                         <div style={{ fontSize: '0.8rem', textTransform: 'uppercase', marginBottom: '4px' }}>{date.toLocaleDateString('en-US', { weekday: 'short' })}</div>
                                         <div style={{ fontSize: '1.1rem', color: 'white' }}>{date.getDate()}</div>
                                     </th>
@@ -139,7 +177,7 @@ const MasterAttendanceCalendar = () => {
                                         <div style={{ fontSize: '0.8rem', color: '#64748b' }}>{faculty.department}</div>
                                     </td>
                                     {weekDates.map(date => {
-                                        const dateStr = date.toISOString().split('T')[0];
+                                        const dateStr = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
                                         const cell = faculty.days[dateStr];
                                         const style = getStatusStyle(cell);
 

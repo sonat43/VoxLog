@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
-import { getSemesters, addSemester, getCourses, deleteSemester, updateSemester, getDepartments } from '../../../services/academicService';
+import { getSemesters, addSemester, getPrograms, deleteSemester, updateSemester, getDepartments } from '../../../services/academicService';
 import { fetchAllUsers } from '../../../services/adminService';
 import Toast from '../../../components/common/Toast';
 import ConfirmModal from '../../../components/common/ConfirmModal';
@@ -9,7 +9,7 @@ import { Trash, Edit, ArrowUp, Lock, Unlock } from 'lucide-react';
 
 const Semesters = () => {
     const [semesters, setSemesters] = useState([]);
-    const [courses, setCourses] = useState([]);
+    const [programs, setPrograms] = useState([]);
     const [departments, setDepartments] = useState([]);
     const [faculty, setFaculty] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -23,7 +23,7 @@ const Semesters = () => {
     const [selectedDept, setSelectedDept] = useState('');
     const [editingId, setEditingId] = useState(null);
 
-    const [formData, setFormData] = useState({ courseId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
+    const [formData, setFormData] = useState({ programId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
     const [toast, setToast] = useState(null);
 
     // Auto-set Semester Number to 1 for new entries (enforcing batch start)
@@ -43,12 +43,12 @@ const Semesters = () => {
         const sem = promoteTarget;
 
         try {
-            // Check if next semester already exists for this course (optional but good safety)
+            // Check if next semester already exists for this program (optional but good safety)
             const nextSemNo = Number(sem.semesterNo) + 1;
-            const existing = semesters.find(s => s.courseId === sem.courseId && s.semesterNo === nextSemNo);
+            const existing = semesters.find(s => s.programId === sem.programId && s.semesterNo === nextSemNo);
 
             if (existing) {
-                setToast({ message: `Semester ${nextSemNo} already exists for this course! Cannot increment.`, type: "error" });
+                setToast({ message: `Semester ${nextSemNo} already exists for this program! Cannot increment.`, type: "error" });
                 return;
             }
 
@@ -93,14 +93,14 @@ const Semesters = () => {
         setLoading(true);
         try {
             // Fetch core data first
-            const [semestersData, coursesData, usersData] = await Promise.all([
+            const [semestersData, programsData, usersData] = await Promise.all([
                 getSemesters(),
-                getCourses(),
+                getPrograms(),
                 fetchAllUsers()
             ]);
 
             setSemesters(semestersData);
-            setCourses(coursesData);
+            setPrograms(programsData);
 
             // Fetch optional data (Departments) separately to avoid crashing everything
             try {
@@ -135,14 +135,14 @@ const Semesters = () => {
         try {
             if (editingId) {
                 await updateSemester(editingId, {
-                    courseId: formData.courseId,
+                    programId: formData.programId,
                     semesterNo: formData.semesterNo,
                     studentCount: formData.studentCount,
                     classTeacherId: formData.classTeacherId
                 });
                 setToast({ message: "Semester updated successfully", type: "success" });
             } else {
-                await addSemester(formData.courseId, formData.semesterNo, formData.studentCount, formData.classTeacherId);
+                await addSemester(formData.programId, formData.semesterNo, formData.studentCount, formData.classTeacherId);
                 setToast({ message: "Semester added successfully", type: "success" });
             }
             handleCloseModal();
@@ -154,7 +154,7 @@ const Semesters = () => {
 
     const startEdit = (sem) => {
         setFormData({
-            courseId: sem.courseId,
+            programId: sem.programId,
             semesterNo: sem.semesterNo,
             studentCount: sem.studentCount || '',
             classTeacherId: sem.classTeacherId || ''
@@ -165,7 +165,7 @@ const Semesters = () => {
 
     const handleCloseModal = () => {
         setIsModalOpen(false);
-        setFormData({ courseId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
+        setFormData({ programId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
         setEditingId(null);
     };
 
@@ -187,9 +187,9 @@ const Semesters = () => {
         }
     };
 
-    const getCourseName = (courseId) => {
-        const c = courses.find(x => x.id === courseId);
-        return c ? c.name : 'Unknown Course';
+    const getProgramName = (programId) => {
+        const c = programs.find(x => x.id === programId);
+        return c ? c.name : 'Unknown Program';
     };
 
     const getTeacherName = (teacherId) => {
@@ -208,7 +208,7 @@ const Semesters = () => {
 
     const columns = [
         { key: 'semesterNo', label: 'Semester No', render: (val) => <span style={{ color: 'white', fontWeight: 600 }}>Semester {val}</span> },
-        { key: 'courseId', label: 'Course', render: (val) => <span style={{ color: '#d1d5db' }}>{getCourseName(val)}</span> },
+        { key: 'programId', label: 'Program', render: (val) => <span style={{ color: '#d1d5db' }}>{getProgramName(val)}</span> },
         { key: 'studentCount', label: 'Students', render: (val) => <span style={{ color: '#9ca3af' }}>{val || 0}</span> },
         { key: 'classTeacherId', label: 'Class Teacher', render: (val) => <span style={{ color: '#d1d5db' }}>{getTeacherName(val)}</span> },
         {
@@ -322,14 +322,14 @@ const Semesters = () => {
                 columns={columns}
                 data={selectedDept
                     ? semesters.filter(s => {
-                        const c = courses.find(course => course.id === s.courseId);
+                        const c = programs.find(program => program.id === s.programId);
                         return c && c.departmentId === selectedDept;
                     })
                     : semesters
                 }
                 onAdd={() => {
                     setEditingId(null);
-                    setFormData({ courseId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
+                    setFormData({ programId: '', semesterNo: '', studentCount: '', classTeacherId: '' });
                     setIsModalOpen(true);
                 }}
                 renderActions={renderActions}
@@ -340,7 +340,7 @@ const Semesters = () => {
                 onClose={() => setIsDeleteModalOpen(false)}
                 onConfirm={handleDelete}
                 title="Delete Semester"
-                message={`Are you sure you want to delete Semester ${selectedSemester?.semesterNo} for ${getCourseName(selectedSemester?.courseId)}? This action cannot be undone.`}
+                message={`Are you sure you want to delete Semester ${selectedSemester?.semesterNo} for ${getProgramName(selectedSemester?.programId)}? This action cannot be undone.`}
                 isDangerous={true}
                 confirmText="Delete"
             />
@@ -370,15 +370,15 @@ const Semesters = () => {
             <SimpleModal isOpen={isModalOpen} onClose={handleCloseModal} title={editingId ? "Edit Semester" : "Add Semester"}>
                 <form onSubmit={handleCreateOrUpdate} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Course</label>
+                        <label style={{ color: '#e5e7eb', fontSize: '0.875rem' }}>Program</label>
                         <select
-                            value={formData.courseId}
-                            onChange={(e) => setFormData({ ...formData, courseId: e.target.value })}
+                            value={formData.programId}
+                            onChange={(e) => setFormData({ ...formData, programId: e.target.value })}
                             required
                             style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#374151', border: '1px solid #4b5563', color: 'white', outline: 'none' }}
                         >
-                            <option value="">Select Course...</option>
-                            {courses.map(c => (
+                            <option value="">Select Program...</option>
+                            {programs.map(c => (
                                 <option key={c.id} value={c.id}>{c.name}</option>
                             ))}
                         </select>

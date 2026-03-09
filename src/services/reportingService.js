@@ -36,15 +36,17 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
         // We'll fetch ALL for the prototype to avoid complex compound queries, 
         // then filter in memory. (Not production ready for 10k records, fine for 100)
 
-        const [facultyAttendanceSnap, leaveSnap, subSnap] = await Promise.all([
+        const [facultyAttendanceSnap, leaveSnap, subSnap, eventsSnap] = await Promise.all([
             getDocs(query(collection(db, "faculty_attendance"))),
             getDocs(query(collection(db, "leave_requests"), where("status", "==", "Approved"))),
-            getDocs(query(collection(db, "substitutions")))
+            getDocs(query(collection(db, "substitutions"))),
+            getDocs(query(collection(db, "academic_events")))
         ]);
 
         const facultyAttRecords = facultyAttendanceSnap.docs.map(d => ({ ...d.data(), id: d.id }));
         const leaveRecords = leaveSnap.docs.map(d => ({ ...d.data(), id: d.id }));
         const subRecords = subSnap.docs.map(d => ({ ...d.data(), id: d.id }));
+        const academicEvents = eventsSnap.docs.map(d => ({ ...d.data(), id: d.id }));
 
         // 3. Build Daily Status Grid
         // Map: FacultyID -> Date -> Status
@@ -61,7 +63,7 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
 
         // Loop through dates
         for (let d = new Date(startDate); d <= endDate; d.setDate(d.getDate() + 1)) {
-            const dateStr = d.toISOString().split('T')[0];
+            const dateStr = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
             facultyList.forEach(f => {
                 const fid = f.uid || f.id;
@@ -69,7 +71,28 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
                 let color = 'Red';
                 let details = [];
 
-                // Check Leave First
+                // 1. Check if it's an Academic Event (Holiday, Exam, etc.)
+                const academicEvent = academicEvents.find(e => e.date === dateStr);
+                if (academicEvent) {
+                    if (academicEvent.type === 'Holiday') {
+                        status = 'Holiday';
+                        color = 'Purple';
+                        details.push(academicEvent.title);
+                    } else if (academicEvent.type === 'Exam') {
+                        status = 'Exam Day';
+                        color = 'Orange';
+                        details.push(academicEvent.title);
+                    } else {
+                        status = 'Event';
+                        color = 'Teal';
+                        details.push(academicEvent.title);
+                    }
+
+                    // For Holidays/Events, we apply it to everyone. But we still check if they took leave or subbed.
+                    // Actually, if it's a Holiday, no attendance is taken. 
+                }
+
+                // 2. Check Leave
                 const leave = leaveRecords.find(l => {
                     return l.facultyId === fid &&
                         dateStr >= l.fromDate &&
@@ -113,6 +136,18 @@ export const getMasterAttendanceReport = async (startDate, endDate) => {
                             color = 'Gray';
                             details.push('Pending Evaluation');
                         }
+                    }
+                }
+
+                // Fallback: If it's a Holiday/Event and NO faculty log exists AND they aren't on leave, overwrite it to Holiday visually
+                // We do this to ensure normal days fallback to Absent/Pending, but Holidays stay Holidays.
+                if (academicEvent && status === 'No Data' || academicEvent && status === 'Absent') {
+                    if (academicEvent.type === 'Holiday') {
+                        status = 'Holiday'; color = 'Purple'; details = [academicEvent.title];
+                    } else if (academicEvent.type === 'Exam') {
+                        status = 'Exam Day'; color = 'Orange'; details = [academicEvent.title];
+                    } else {
+                        status = 'Event'; color = 'Teal'; details = [academicEvent.title];
                     }
                 }
 

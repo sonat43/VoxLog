@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { GraduationCap, Users, AlertTriangle, CheckCircle, TrendingUp } from 'lucide-react';
+import { GraduationCap, Users, AlertTriangle, CheckCircle, TrendingUp, Download } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
+import { downloadCSV } from '../../utils/csvExport';
 import { useAuth } from '../../context/AuthContext';
 import { getSemestersByClassTeacher, getStudentsBySemester, getAttendanceRecords } from '../../services/academicService';
 import { doc, getDoc } from 'firebase/firestore';
@@ -38,13 +39,13 @@ const MyClass = () => {
                         // Sort by percent ascending (risk first)
                         studentsWithStats.sort((a, b) => a.attendancePercent - b.attendancePercent);
 
-                        const courseRef = doc(db, "courses", mySem.courseId);
-                        const courseSnap = await getDoc(courseRef);
-                        const courseData = courseSnap.exists() ? courseSnap.data() : null;
+                        const programRef = doc(db, "programs", mySem.programId);
+                        const programSnap = await getDoc(programRef);
+                        const programData = programSnap.exists() ? programSnap.data() : null;
 
                         let departmentName = "Class";
-                        if (courseData && courseData.departmentId) {
-                            const deptRef = doc(db, "departments", courseData.departmentId);
+                        if (programData && programData.departmentId) {
+                            const deptRef = doc(db, "departments", programData.departmentId);
                             const deptSnap = await getDoc(deptRef);
                             if (deptSnap.exists()) {
                                 departmentName = deptSnap.data().name;
@@ -92,6 +93,25 @@ const MyClass = () => {
         fetchClassData();
     }, [user]);
 
+    const handleDownload = () => {
+        if (!myClassData || !myClassData.students || myClassData.students.length === 0) {
+            alert("No student data available to download.");
+            return;
+        }
+
+        const headers = ['Student Name', 'Reg No', 'Attendance Rate (%)', 'Status'];
+
+        const data = myClassData.students.map(student => ({
+            'Student Name': student.name,
+            'Reg No': student.regNo,
+            'Attendance Rate (%)': `${student.attendancePercent}%`,
+            'Status': student.attendancePercent >= 75 ? 'Good' : student.attendancePercent >= 65 ? 'Low Caution' : 'Critical'
+        }));
+
+        const filename = `Class_Report_${myClassData.department.replace(/\s+/g, '_')}_S${myClassData.semester}`;
+        downloadCSV(data, headers, filename);
+    };
+
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -115,19 +135,39 @@ const MyClass = () => {
                 variants={containerVariants}
                 style={{ maxWidth: '1400px', margin: '0 auto' }}
             >
-                <motion.header variants={itemVariants} style={{ marginBottom: '2.5rem' }}>
-                    <h1 style={{
-                        fontSize: '2.5rem', fontWeight: '800', margin: '0 0 0.5rem 0',
-                        background: 'linear-gradient(to right, #fff, #94a3b8)',
-                        WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
-                        display: 'flex', alignItems: 'center', gap: '1rem'
-                    }}>
-                        <GraduationCap size={40} className="text-blue-400" />
-                        {myClassData ? `${myClassData.department} - S${myClassData.semester}` : 'My Class Overview'}
-                    </h1>
-                    <p style={{ fontSize: '1.1rem', color: '#94a3b8' }}>
-                        Track performance and attendance for your assigned class
-                    </p>
+                <motion.header variants={itemVariants} style={{ marginBottom: '2.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+                    <div>
+                        <h1 style={{
+                            fontSize: '2.5rem', fontWeight: '800', margin: '0 0 0.5rem 0',
+                            background: 'linear-gradient(to right, #fff, #94a3b8)',
+                            WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent',
+                            display: 'flex', alignItems: 'center', gap: '1rem'
+                        }}>
+                            <GraduationCap size={40} className="text-blue-400" />
+                            {myClassData ? `${myClassData.department} - S${myClassData.semester}` : 'My Class Overview'}
+                        </h1>
+                        <p style={{ fontSize: '1.1rem', color: '#94a3b8' }}>
+                            Track performance and attendance for your assigned class
+                        </p>
+                    </div>
+                    {myClassData && myClassData.students && myClassData.students.length > 0 && (
+                        <button
+                            onClick={handleDownload}
+                            style={{
+                                padding: '0.75rem 1.5rem',
+                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                color: 'white',
+                                border: 'none', borderRadius: '1rem', fontWeight: 'bold', cursor: 'pointer',
+                                boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset',
+                                display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'transform 0.2s'
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)' }}
+                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+                        >
+                            <Download size={18} />
+                            Download Report
+                        </button>
+                    )}
                 </motion.header>
 
                 <motion.div variants={itemVariants}>

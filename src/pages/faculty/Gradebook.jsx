@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Plus, Save, Award, AlertTriangle, Check, X } from 'lucide-react';
-import { getMySubjects, createAssessment, getAssessments, saveStudentGrade, getGradesForAssessment } from '../../services/facultyService';
+import { getMyCourses, createAssessment, getAssessments, saveStudentGrade, getGradesForAssessment } from '../../services/facultyService';
 import { fetchAllUsers } from '../../services/adminService'; // To get students
 import { useAuth } from '../../context/AuthContext';
 import Toast from '../../components/common/Toast';
@@ -9,8 +9,8 @@ import SimpleModal from '../../components/admin/academic/SimpleModal';
 
 const Gradebook = () => {
     const { user } = useAuth();
-    const [subjects, setSubjects] = useState([]);
-    const [selectedSubject, setSelectedSubject] = useState(null);
+    const [courses, setCourses] = useState([]);
+    const [selectedCourse, setSelectedCourse] = useState(null);
     const [assessments, setAssessments] = useState([]);
     const [selectedAssessment, setSelectedAssessment] = useState(null);
     const [students, setStudents] = useState([]); // Mock or fetched
@@ -25,12 +25,12 @@ const Gradebook = () => {
     useEffect(() => {
         const init = async () => {
             if (user?.uid) {
-                const mySubjects = await getMySubjects(user.uid);
-                setSubjects(mySubjects);
-                if (mySubjects.length > 0) setSelectedSubject(mySubjects[0]);
+                const myCourses = await getMyCourses(user.uid);
+                setCourses(myCourses);
+                if (myCourses.length > 0) setSelectedCourse(myCourses[0]);
 
-                // Fetch mock students for now since we don't have a robust student-subject link yet
-                // In prod: await getStudentsBySubject(subjectId)
+                // Fetch mock students for now since we don't have a robust student-course link yet
+                // In prod: await getStudentsByCourse(courseId)
                 const allUsers = await fetchAllUsers();
                 setStudents(allUsers.filter(u => u.role === 'Student' || u.role === 'student'));
 
@@ -41,10 +41,10 @@ const Gradebook = () => {
     }, [user]);
 
     useEffect(() => {
-        if (selectedSubject) {
-            loadAssessments(selectedSubject.id);
+        if (selectedCourse) {
+            loadAssessments(selectedCourse.id);
         }
-    }, [selectedSubject]);
+    }, [selectedCourse]);
 
     useEffect(() => {
         if (selectedAssessment) {
@@ -52,8 +52,8 @@ const Gradebook = () => {
         }
     }, [selectedAssessment]);
 
-    const loadAssessments = async (subjectId) => {
-        const data = await getAssessments(subjectId);
+    const loadAssessments = async (courseId) => {
+        const data = await getAssessments(courseId);
         setAssessments(data);
         if (data.length > 0) setSelectedAssessment(data[0]);
         else setSelectedAssessment(null);
@@ -71,12 +71,12 @@ const Gradebook = () => {
         try {
             await createAssessment({
                 ...newAssessment,
-                subjectId: selectedSubject.id,
+                courseId: selectedCourse.id,
                 facultyId: user.uid
             });
             setToast({ message: "Assessment created", type: "success" });
             setIsCreateModalOpen(false);
-            loadAssessments(selectedSubject.id);
+            loadAssessments(selectedCourse.id);
         } catch (error) {
             setToast({ message: "Error creating assessment", type: "error" });
         }
@@ -120,11 +120,11 @@ const Gradebook = () => {
                 </div>
 
                 <select
-                    value={selectedSubject?.id || ''}
-                    onChange={(e) => setSelectedSubject(subjects.find(s => s.id === e.target.value))}
+                    value={selectedCourse?.id || ''}
+                    onChange={(e) => setSelectedCourse(courses.find(s => s.id === e.target.value))}
                     style={{ padding: '0.75rem', borderRadius: '0.5rem', background: '#1f2937', color: 'white', border: '1px solid rgba(255,255,255,0.1)' }}
                 >
-                    {subjects.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
+                    {courses.map(s => <option key={s.id} value={s.id}>{s.name} ({s.code})</option>)}
                 </select>
             </div>
 

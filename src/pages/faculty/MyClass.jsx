@@ -1,18 +1,26 @@
 import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { GraduationCap, Users, AlertTriangle, CheckCircle, TrendingUp, Download } from 'lucide-react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { GraduationCap, Users, AlertTriangle, CheckCircle, TrendingUp, Download, Mail } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import { downloadCSV } from '../../utils/csvExport';
 import { useAuth } from '../../context/AuthContext';
 import { getSemestersByClassTeacher, getStudentsBySemester, getAttendanceRecords } from '../../services/academicService';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../services/firebase';
-
+import ComposeEmailModal from '../../components/common/ComposeEmailModal';
 
 const MyClass = () => {
     const { user } = useAuth();
     const [loading, setLoading] = useState(true);
     const [myClassData, setMyClassData] = useState(null);
+
+    // Email Modal State
+    const [emailModal, setEmailModal] = useState({
+        isOpen: false,
+        recipients: [],
+        title: '',
+        defaultSubject: ''
+    });
 
     useEffect(() => {
         const fetchClassData = async () => {
@@ -112,6 +120,33 @@ const MyClass = () => {
         downloadCSV(data, headers, filename);
     };
 
+    const handleMessageAllStudents = () => {
+        if (!myClassData?.students) return;
+        const recipients = myClassData.students
+            .filter(s => s.email)
+            .map(s => ({ email: s.email, name: s.name }));
+
+        setEmailModal({
+            isOpen: true,
+            recipients,
+            title: `Message All Students (${myClassData.semesterName})`,
+            defaultSubject: `[VoxLog] Important Announcement for S${myClassData.semester} Students`
+        });
+    };
+
+    const handleMessageIndividualStudent = (student) => {
+        if (!student.email) {
+            alert("No email address found for this student.");
+            return;
+        }
+        setEmailModal({
+            isOpen: true,
+            recipients: [{ email: student.email, name: student.name }],
+            title: `Message ${student.name}`,
+            defaultSubject: `[VoxLog] Message from your Class Teacher`
+        });
+    };
+
     const containerVariants = {
         hidden: { opacity: 0 },
         visible: {
@@ -150,24 +185,43 @@ const MyClass = () => {
                             Track performance and attendance for your assigned class
                         </p>
                     </div>
-                    {myClassData && myClassData.students && myClassData.students.length > 0 && (
-                        <button
-                            onClick={handleDownload}
-                            style={{
-                                padding: '0.75rem 1.5rem',
-                                background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-                                color: 'white',
-                                border: 'none', borderRadius: '1rem', fontWeight: 'bold', cursor: 'pointer',
-                                boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset',
-                                display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'transform 0.2s'
-                            }}
-                            onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)' }}
-                            onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
-                        >
-                            <Download size={18} />
-                            Download Report
-                        </button>
-                    )}
+                    <div style={{ display: 'flex', gap: '1rem' }}>
+                        {myClassData && myClassData.students && myClassData.students.length > 0 && (
+                            <>
+                                <button
+                                    onClick={handleMessageAllStudents}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: 'rgba(59, 130, 246, 0.1)',
+                                        color: '#60a5fa',
+                                        border: '1px solid rgba(59, 130, 246, 0.2)', borderRadius: '1rem', fontWeight: 'bold', cursor: 'pointer',
+                                        display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                                >
+                                    <Mail size={18} />
+                                    Message Students
+                                </button>
+                                <button
+                                    onClick={handleDownload}
+                                    style={{
+                                        padding: '0.75rem 1.5rem',
+                                        background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+                                        color: 'white',
+                                        border: 'none', borderRadius: '1rem', fontWeight: 'bold', cursor: 'pointer',
+                                        boxShadow: '0 4px 20px rgba(37, 99, 235, 0.4), 0 0 0 1px rgba(255,255,255,0.1) inset',
+                                        display: 'flex', alignItems: 'center', gap: '0.75rem', transition: 'transform 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => { e.currentTarget.style.transform = 'scale(1.02)' }}
+                                    onMouseLeave={(e) => { e.currentTarget.style.transform = 'scale(1)' }}
+                                >
+                                    <Download size={18} />
+                                    Download Report
+                                </button>
+                            </>
+                        )}
+                    </div>
                 </motion.header>
 
                 <motion.div variants={itemVariants}>
@@ -308,14 +362,31 @@ const MyClass = () => {
                                                     </div>
                                                 </td>
                                                 <td style={{ padding: '1rem', textAlign: 'right' }}>
-                                                    <span style={{
-                                                        padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
-                                                        background: student.attendancePercent >= 75 ? 'rgba(16, 185, 129, 0.1)' : student.attendancePercent >= 65 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
-                                                        color: student.attendancePercent >= 75 ? '#34d399' : student.attendancePercent >= 65 ? '#fbbf24' : '#f87171',
-                                                        border: `1px solid ${student.attendancePercent >= 75 ? 'rgba(16, 185, 129, 0.2)' : student.attendancePercent >= 65 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`
-                                                    }}>
-                                                        {student.attendancePercent >= 75 ? 'Good' : student.attendancePercent >= 65 ? 'Low Caution' : 'Critical'}
-                                                    </span>
+                                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1rem' }}>
+                                                        <button
+                                                            onClick={() => handleMessageIndividualStudent(student)}
+                                                            style={{
+                                                                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                                                borderRadius: '8px', padding: '6px', color: '#94a3b8', cursor: 'pointer',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                transition: 'all 0.2s'
+                                                            }}
+                                                            onMouseOver={(e) => e.currentTarget.style.color = '#3b82f6'}
+                                                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                                            title="Message Student"
+                                                        >
+                                                            <Mail size={16} />
+                                                        </button>
+                                                        <span style={{
+                                                            padding: '0.25rem 0.75rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 600,
+                                                            background: student.attendancePercent >= 75 ? 'rgba(16, 185, 129, 0.1)' : student.attendancePercent >= 65 ? 'rgba(245, 158, 11, 0.1)' : 'rgba(239, 68, 68, 0.1)',
+                                                            color: student.attendancePercent >= 75 ? '#34d399' : student.attendancePercent >= 65 ? '#fbbf24' : '#f87171',
+                                                            border: `1px solid ${student.attendancePercent >= 75 ? 'rgba(16, 185, 129, 0.2)' : student.attendancePercent >= 65 ? 'rgba(245, 158, 11, 0.2)' : 'rgba(239, 68, 68, 0.2)'}`,
+                                                            whiteSpace: 'nowrap'
+                                                        }}>
+                                                            {student.attendancePercent >= 75 ? 'Good' : student.attendancePercent >= 65 ? 'Low Caution' : 'Critical'}
+                                                        </span>
+                                                    </div>
                                                 </td>
                                             </tr>
                                         ))}
@@ -337,6 +408,14 @@ const MyClass = () => {
                         </div>
                     )}
                 </motion.div>
+
+                <ComposeEmailModal
+                    isOpen={emailModal.isOpen}
+                    onClose={() => setEmailModal({ ...emailModal, isOpen: false })}
+                    recipients={emailModal.recipients}
+                    title={emailModal.title}
+                    defaultSubject={emailModal.defaultSubject}
+                />
             </motion.div>
         </>
     );

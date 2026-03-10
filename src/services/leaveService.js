@@ -129,7 +129,7 @@ export const updateLeaveStatus = async (requestId, status, remarks = "") => {
                         const { sendEmailNotification } = await import('./emailService');
                         await sendEmailNotification(
                             userData.email,
-                            `Leave Request ${status}`,
+                            `[VoxLog] Leave Request ${status}: ${leaveData.fromDate} to ${leaveData.toDate}`,
                             htmlEmail
                         );
                         console.log(`[Notification] Leave ${status} email sent to ${userData.email}`);

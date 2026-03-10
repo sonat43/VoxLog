@@ -136,13 +136,16 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                 periodIndex: selectedImpactedClass.periodIndex,
                 timeRange: selectedImpactedClass.timeRange,
                 classId: selectedImpactedClass.semesterId, // Use semesterId as classId
-                courseId: selectedImpactedClass.courseId,
                 courseName: selectedImpactedClass.coursename,
                 originalFacultyId: selectedImpactedClass.originalFacultyId,
                 substituteFacultyId: selectedSubstitute.uid || selectedSubstitute.id,
                 substituteName: selectedSubstitute.displayName,
                 requestedBy: user.uid,
-                status: 'confirmed'
+                status: 'confirmed',
+                // Pass academic metadata
+                semesterNo: selectedImpactedClass.semesterNo,
+                programName: selectedImpactedClass.programName,
+                deptName: selectedImpactedClass.deptName
             });
 
             setToast({ type: 'success', message: 'Substitution confirmed & Substitute notified!' });
@@ -254,13 +257,16 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                     >
                                         {isMyClass && <div style={{ position: 'absolute', top: 12, right: 12, fontSize: '0.7rem', background: '#14b8a6', color: 'white', padding: '2px 6px', borderRadius: '4px' }}>Me</div>}
 
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '8px' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '4px' }}>
                                             <div style={{ fontWeight: 600, color: 'white', fontSize: '1rem' }}>{item.coursename}</div>
                                             {item.status === 'Covered' ? (
                                                 <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: '#14b8a6', color: 'white' }}>Covered</span>
                                             ) : (
                                                 <span style={{ fontSize: '0.75rem', padding: '2px 8px', borderRadius: '4px', background: '#f59e0b', color: 'white' }}>Pending</span>
                                             )}
+                                        </div>
+                                        <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginBottom: '8px' }}>
+                                            {item.deptName} • {item.programName} (S{item.semesterNo})
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.875rem' }}>
                                             <Clock size={14} /> {item.timeRange}

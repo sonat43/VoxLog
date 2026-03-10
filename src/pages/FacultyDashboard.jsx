@@ -2,15 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { getTimetable } from '../services/timetableService';
 import AttendanceModal from '../components/dashboard/AttendanceModal';
-import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar, CheckCircle } from 'lucide-react';
+import { BookOpen, Award, Folder, AlertTriangle, ArrowRight, Book, Layers, Users, Clock, Calendar, CheckCircle, Bell } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getMyCourses, getDashboardStats, getTodayAttendanceSessions, getFacultyClassAttendanceAverages, getStudentBirthdaysToday } from '../services/facultyService';
 import { getSubstitutionsForFaculty } from '../services/substitutionService';
+import { isFacultyOnLeave } from '../services/leaveService';
 import { useAuth } from '../context/AuthContext';
-import { Bell } from 'lucide-react';
-import { db } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { checkIfHoliday } from '../services/calendarService';
+import { getSemestersByClassTeacher, getStudentsBySemester } from '../services/academicService';
+import ComposeEmailModal from '../components/common/ComposeEmailModal';
+import { Mail } from 'lucide-react';
 
 const FacultyDashboard = () => {
     const { user } = useAuth();
@@ -38,9 +40,30 @@ const FacultyDashboard = () => {
     const [dailyAttendanceStatus, setDailyAttendanceStatus] = useState(null);
     const [holidayInfo, setHolidayInfo] = useState({ isHoliday: false, reason: null });
 
+    // Email Modal State
+    const [emailModal, setEmailModal] = useState({
+        isOpen: false,
+        recipients: [],
+        title: '',
+        defaultSubject: ''
+    });
+    const [isClassTeacher, setIsClassTeacher] = useState(false);
+    const [classStudents, setClassStudents] = useState([]);
+
     useEffect(() => {
         const fetchDashboardData = async () => {
             if (user?.uid) {
+                // Check if Class Teacher
+                try {
+                    const classTeacherSems = await getSemestersByClassTeacher(user.uid);
+                    if (classTeacherSems && classTeacherSems.length > 0) {
+                        setIsClassTeacher(true);
+                        const students = await getStudentsBySemester(classTeacherSems[0].id);
+                        setClassStudents(students);
+                    }
+                } catch (error) {
+                    console.error("Error checking class teacher status:", error);
+                }
                 // 1. Fetch Courses and Timetables (Critical for Weekly Schedule)
                 try {
                     const myCourses = await getMyCourses(user.uid);
@@ -103,6 +126,14 @@ const FacultyDashboard = () => {
             const day = String(todayDate.getDate()).padStart(2, '0');
             const dateString = `${year}-${month}-${day}`;
 
+            // Check if on leave today
+            let onLeaveToday = false;
+            try {
+                onLeaveToday = await isFacultyOnLeave(user.uid, dateString);
+            } catch (err) {
+                console.error("Error checking leave status:", err);
+            }
+
             // 1. Fetch ALL Substitutions (for Weekly View + Today)
             let allSubs = [];
             try {
@@ -124,8 +155,8 @@ const FacultyDashboard = () => {
             // 3. Calculate Today's Classes
             const classes = [];
 
-            // A. Regular
-            if (Array.isArray(courses)) {
+            // A. Regular (SKIP IF ON LEAVE)
+            if (Array.isArray(courses) && !onLeaveToday) {
                 courses.forEach(course => {
                     if (course.semesterId && timetables[course.semesterId] && timetables[course.semesterId][currentDayName]) {
                         timetables[course.semesterId][currentDayName].forEach(slot => {
@@ -141,7 +172,7 @@ const FacultyDashboard = () => {
                 });
             }
 
-            // B. Substitutions (Today Only)
+            // B. Substitutions (Today Only - SHOULD STILL SHOW even if on leave, though unlikely)
             const todaysSubs = allSubs.filter(s => s.date === dateString);
             todaysSubs.forEach(sub => {
                 const isTaken = attended.some(s =>
@@ -270,6 +301,29 @@ const FacultyDashboard = () => {
         return `${to12Hour(start)} - ${to12Hour(end)}`;
     };
 
+    const handleMessageAllStudents = () => {
+        const recipients = classStudents
+            .filter(s => s.email)
+            .map(s => ({ email: s.email, name: s.name }));
+
+        setEmailModal({
+            isOpen: true,
+            recipients,
+            title: 'Message My Class Students',
+            defaultSubject: `[VoxLog] Important Announcement for my Class`
+        });
+    };
+
+    const handleMessageIndividualStudent = (student) => {
+        if (!student.email) return;
+        setEmailModal({
+            isOpen: true,
+            recipients: [{ email: student.email, name: student.name }],
+            title: `Message ${student.name}`,
+            defaultSubject: `[VoxLog] Happy Birthday, ${student.name}! 🎂`
+        });
+    };
+
     return (
         <>
             <motion.div
@@ -307,6 +361,30 @@ const FacultyDashboard = () => {
                         <p style={{ margin: 0, color: 'var(--color-text-muted)', maxWidth: '600px', fontSize: '1rem', lineHeight: '1.6' }}>
                             Academic Dashboard & Control Center
                         </p>
+                        {isClassTeacher && (
+                            <button
+                                onClick={handleMessageAllStudents}
+                                style={{
+                                    marginTop: '1.5rem',
+                                    padding: '0.75rem 1.5rem',
+                                    background: 'rgba(59, 130, 246, 0.1)',
+                                    color: '#60a5fa',
+                                    border: '1px solid rgba(59, 130, 246, 0.2)',
+                                    borderRadius: '0.75rem',
+                                    fontWeight: 600,
+                                    cursor: 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: '0.75rem',
+                                    transition: 'all 0.2s'
+                                }}
+                                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)'}
+                                onMouseLeave={(e) => e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)'}
+                            >
+                                <Mail size={18} />
+                                Message My Students
+                            </button>
+                        )}
                     </div>
 
                     {/* Daily Faculty Attendance Status Badge */}
@@ -668,8 +746,9 @@ const FacultyDashboard = () => {
                                 });
                                 // Sort by time
                                 dayClasses.sort((a, b) => {
-                                    const timeA = a.timeRange.split(' - ')[0]; // "09:00"
-                                    return timeA.localeCompare(b.timeRange.split(' - ')[0]);
+                                    const timeA = (a.timeRange || "").split(' - ')[0] || "";
+                                    const timeB = (b.timeRange || "").split(' - ')[0] || "";
+                                    return timeA.localeCompare(timeB);
                                 });
 
                                 if (dayClasses.length === 0) {
@@ -863,9 +942,25 @@ const FacultyDashboard = () => {
                                                 display: 'flex', justifyContent: 'space-between', alignItems: 'center'
                                             }}>
                                                 <span style={{ color: 'var(--color-text-main)', fontWeight: 600 }}>{bday.name}</span>
-                                                <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', fontWeight: 500, background: 'rgba(255, 255, 255, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>
-                                                    {bday.semesterName}
-                                                </span>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <span style={{ color: 'var(--color-text-muted)', fontSize: '0.8rem', fontWeight: 500, background: 'rgba(255, 255, 255, 0.1)', padding: '2px 8px', borderRadius: '12px' }}>
+                                                        {bday.semesterName}
+                                                    </span>
+                                                    {bday.email && (
+                                                        <button
+                                                            onClick={() => handleMessageIndividualStudent(bday)}
+                                                            style={{
+                                                                background: 'rgba(59, 130, 246, 0.15)', color: '#60a5fa',
+                                                                border: 'none', borderRadius: '50%', width: '30px', height: '30px',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                cursor: 'pointer'
+                                                            }}
+                                                            title="Send Birthday Wish"
+                                                        >
+                                                            <Mail size={14} />
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         ))
                                     )}
@@ -915,7 +1010,7 @@ const FacultyDashboard = () => {
             </motion.div >
 
             {/* Attendance Modal */}
-            < AnimatePresence >
+            <AnimatePresence>
                 {showAttendanceModal && selectedClassForAttendance && (
                     <AttendanceModal
                         isOpen={showAttendanceModal}
@@ -923,7 +1018,15 @@ const FacultyDashboard = () => {
                         programs={[{ ...selectedClassForAttendance, status: 'active' }]}
                     />
                 )}
-            </AnimatePresence >
+            </AnimatePresence>
+
+            <ComposeEmailModal
+                isOpen={emailModal.isOpen}
+                onClose={() => setEmailModal({ ...emailModal, isOpen: false })}
+                recipients={emailModal.recipients}
+                title={emailModal.title}
+                defaultSubject={emailModal.defaultSubject}
+            />
         </>
     );
 };

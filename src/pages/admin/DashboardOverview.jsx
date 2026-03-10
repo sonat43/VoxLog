@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuth } from '../../context/AuthContext';
-import { Users, GraduationCap, Layers, Book, Clock, Send, RefreshCw } from 'lucide-react';
+import { Users, GraduationCap, Layers, Book, Clock, Send, RefreshCw, Mail } from 'lucide-react';
 import { fetchAllUsers, getWeeklyAttendanceAnalytics } from '../../services/adminService';
 import { getAllStudents, getDepartments, getPrograms, getCourses, getRecentAttendanceActivity } from '../../services/academicService';
 import { processEndOfDayEmails } from '../../services/facultyService';
@@ -8,10 +8,12 @@ import { getAllTodaysSubstitutions } from '../../services/substitutionService';
 import { getTodayFacultyAttendance } from '../../services/adminService';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import Toast from '../../components/common/Toast';
+import ComposeEmailModal from '../../components/common/ComposeEmailModal';
 import { motion } from 'framer-motion';
 
 const DashboardOverview = () => {
     const { user } = useAuth();
+    const [faculty, setFaculty] = useState([]);
     const [stats, setStats] = useState({
         faculty: 0,
         students: 0,
@@ -26,6 +28,14 @@ const DashboardOverview = () => {
     const [sendingEmails, setSendingEmails] = useState(false);
     const [toast, setToast] = useState(null);
     const [showConfirmModal, setShowConfirmModal] = useState(false);
+
+    // Email Modal State
+    const [emailModal, setEmailModal] = useState({
+        isOpen: false,
+        recipients: [],
+        title: '',
+        defaultSubject: ''
+    });
 
     useEffect(() => {
         const fetchStats = async () => {
@@ -42,8 +52,11 @@ const DashboardOverview = () => {
                     getTodayFacultyAttendance()
                 ]);
 
+                const facultyUsers = users.filter(u => u.role === 'faculty' || u.role === 'Faculty');
+                setFaculty(facultyUsers);
+
                 setStats({
-                    faculty: users.length,
+                    faculty: facultyUsers.length,
                     students: students.length,
                     departments: depts.length,
                     programs: programs.length
@@ -64,10 +77,11 @@ const DashboardOverview = () => {
 
                 // Map faculty names to their attendance
                 const enrichedFacAtt = todaysFacAtt.map(att => {
-                    const fac = users.find(u => u.id === att.facultyId);
+                    const fac = facultyUsers.find(u => u.id === att.facultyId);
                     return {
                         ...att,
-                        facultyName: fac?.displayName || fac?.email?.split('@')[0] || 'Unknown Faculty'
+                        facultyName: fac?.displayName || fac?.email?.split('@')[0] || 'Unknown Faculty',
+                        email: fac?.email
                     };
                 });
                 setTodaysFacultyAttendance(enrichedFacAtt);
@@ -81,6 +95,30 @@ const DashboardOverview = () => {
 
         fetchStats();
     }, []);
+
+    const handleMessageAllFaculty = () => {
+        const recipients = faculty.map(f => ({ email: f.email, name: f.displayName }));
+        setEmailModal({
+            isOpen: true,
+            recipients,
+            title: 'Message All Faculty Members',
+            defaultSubject: '[VoxLog] Important Update for Faculty Members'
+        });
+    };
+
+    const handleMessageIndividualFaculty = (facEntry) => {
+        if (!facEntry.email) {
+            setToast({ message: "No email address found for this faculty member.", type: 'error' });
+            return;
+        }
+        setEmailModal({
+            isOpen: true,
+            recipients: [{ email: facEntry.email, name: facEntry.facultyName }],
+            title: `Message ${facEntry.facultyName}`,
+            defaultSubject: `[VoxLog] Message from Administration`
+        });
+    };
+
 
     const statCards = [
         { title: 'Total Faculty', count: stats.faculty, icon: Users, color: '#3b82f6', bg: 'rgba(59, 130, 246, 0.15)' },
@@ -152,7 +190,21 @@ const DashboardOverview = () => {
                             System status is <strong style={{ color: '#34d399' }}>Healthy</strong>.
                         </p>
                     </div>
-                    <div>
+                    <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                        <button
+                            onClick={handleMessageAllFaculty}
+                            disabled={faculty.length === 0}
+                            style={{
+                                padding: '12px 24px', borderRadius: '12px', background: 'rgba(59, 130, 246, 0.1)', color: '#60a5fa', border: '1px solid rgba(59, 130, 246, 0.2)',
+                                fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px', cursor: faculty.length === 0 ? 'not-allowed' : 'pointer', height: 'fit-content',
+                                transition: 'all 0.2s', fontSize: '1rem'
+                            }}
+                            onMouseOver={(e) => { if (faculty.length > 0) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.2)' }}
+                            onMouseOut={(e) => { if (faculty.length > 0) e.currentTarget.style.background = 'rgba(59, 130, 246, 0.1)' }}
+                        >
+                            <Mail size={18} />
+                            Message Faculty
+                        </button>
                         <button
                             onClick={() => setShowConfirmModal(true)}
                             disabled={sendingEmails}
@@ -290,18 +342,34 @@ const DashboardOverview = () => {
                                         <strong style={{ color: '#e2e8f0' }}>{facLog.facultyName}</strong>
                                         <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{facLog.completedClasses} / {facLog.targetClasses} Classes Done</span>
                                     </div>
-                                    <span style={{
-                                        background: facLog.status === 'Present' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
-                                        color: facLog.status === 'Present' ? '#10b981' : '#ef4444',
-                                        padding: '4px 10px',
-                                        borderRadius: '8px',
-                                        fontSize: '0.8rem',
-                                        fontWeight: 700,
-                                        letterSpacing: '0.05em',
-                                        textTransform: 'uppercase'
-                                    }}>
-                                        {facLog.status}
-                                    </span>
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <button
+                                            onClick={() => handleMessageIndividualFaculty(facLog)}
+                                            style={{
+                                                background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)',
+                                                borderRadius: '8px', padding: '6px', color: '#94a3b8', cursor: 'pointer',
+                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                transition: 'all 0.2s'
+                                            }}
+                                            onMouseOver={(e) => e.currentTarget.style.color = '#3b82f6'}
+                                            onMouseOut={(e) => e.currentTarget.style.color = '#94a3b8'}
+                                            title="Send Personal Mail"
+                                        >
+                                            <Mail size={16} />
+                                        </button>
+                                        <span style={{
+                                            background: facLog.status === 'Present' ? 'rgba(16, 185, 129, 0.15)' : 'rgba(239, 68, 68, 0.15)',
+                                            color: facLog.status === 'Present' ? '#10b981' : '#ef4444',
+                                            padding: '4px 10px',
+                                            borderRadius: '8px',
+                                            fontSize: '0.8rem',
+                                            fontWeight: 700,
+                                            letterSpacing: '0.05em',
+                                            textTransform: 'uppercase'
+                                        }}>
+                                            {facLog.status}
+                                        </span>
+                                    </div>
                                 </div>
                             ))
                         )}
@@ -463,6 +531,14 @@ const DashboardOverview = () => {
                     </motion.div>
                 </div>
             )}
+
+            <ComposeEmailModal
+                isOpen={emailModal.isOpen}
+                onClose={() => setEmailModal({ ...emailModal, isOpen: false })}
+                recipients={emailModal.recipients}
+                title={emailModal.title}
+                defaultSubject={emailModal.defaultSubject}
+            />
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={() => setToast(null)} />}
         </motion.div>

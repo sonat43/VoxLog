@@ -168,23 +168,52 @@ export const getFacultyScheduleForDate = async (facultyId, dateString) => {
         console.log(`[DEBUG] Checking timetables for day: ${dayName} (${dateString})`);
 
         const mySlots = [];
+        const academicCache = {};
 
-        timetablesSnap.docs.forEach(doc => {
-            const semesterId = doc.id;
-            const schedule = doc.data().schedule;
+        for (const timetableDoc of timetablesSnap.docs) {
+            const semesterId = timetableDoc.id;
+            const schedule = timetableDoc.data().schedule;
 
             if (schedule && schedule[dayName]) {
+                if (!academicCache[semesterId]) {
+                    const semRef = doc(db, "semesters", semesterId);
+                    const semSnap = await getDoc(semRef);
+                    if (semSnap.exists()) {
+                        const semData = semSnap.data();
+                        const programRef = doc(db, "courses", semData.courseId);
+                        const programSnap = await getDoc(programRef);
+                        const programData = programSnap.exists() ? programSnap.data() : null;
+
+                        let deptName = "Class";
+                        if (programData?.departmentId) {
+                            const deptSnap = await getDoc(doc(db, "departments", programData.departmentId));
+                            if (deptSnap.exists()) deptName = deptSnap.data().name;
+                        }
+
+                        academicCache[semesterId] = {
+                            semesterNo: semData.semesterNo,
+                            programName: programData?.name || 'Unknown Program',
+                            deptName: deptName
+                        };
+                    }
+                }
+
+                const metadata = academicCache[semesterId] || {};
+
                 schedule[dayName].forEach(slot => {
                     if (courseIds.includes(slot.courseId)) {
                         mySlots.push({
                             ...slot,
                             semesterId,
-                            date: dateString
+                            date: dateString,
+                            semesterNo: metadata.semesterNo,
+                            programName: metadata.programName,
+                            deptName: metadata.deptName
                         });
                     }
                 });
             }
-        });
+        }
 
         console.log(`[DEBUG] Found ${mySlots.length} slots for faculty.`);
         return mySlots;

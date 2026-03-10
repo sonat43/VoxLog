@@ -160,7 +160,7 @@ export const createSubstitution = async (data) => {
         await addDoc(collection(db, "notifications"), {
             userId: data.substituteFacultyId,
             title: "New Substitution Assigned",
-            message: `You have been assigned a substitution for ${data.courseName} on ${data.date} (${data.timeRange}).`,
+            message: `You have been assigned a substitution for ${data.courseName} (${data.deptName || ''} - ${data.programName || ''} S${data.semesterNo || ''}) on ${data.date} (${data.timeRange}).`,
             type: "substitution",
             read: false,
             createdAt: serverTimestamp(),
@@ -196,7 +196,15 @@ export const createSubstitution = async (data) => {
                                 <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 25px 0;">
                                     <table style="width: 100%; border-collapse: collapse;">
                                         <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 80px;">Course</td>
+                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 100px;">Department</td>
+                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.deptName || 'N/A'}</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Program</td>
+                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.programName || 'N/A'} (S${data.semesterNo || '?'})</td>
+                                        </tr>
+                                        <tr>
+                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Course</td>
                                             <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.courseName}</td>
                                         </tr>
                                         <tr>
@@ -228,7 +236,7 @@ export const createSubstitution = async (data) => {
 
                     await sendEmailNotification(
                         userData.email,
-                        `✅ Action Required: Substitution for ${data.courseName}`,
+                        `[VoxLog] Urgent: Substitution Assigned - ${data.courseName} (${data.date})`,
                         htmlEmail
                     );
                 }
@@ -391,7 +399,11 @@ export const getClassesNeedingSubstitution = async (dateString) => {
                     leaveType: leave.type,
                     leaveStatus: leave.status, // Pass status (Pending/Approved)
                     status: existingSub ? 'Covered' : 'Pending',
-                    substituteName: existingSub ? existingSub.substituteName : null
+                    substituteName: existingSub ? existingSub.substituteName : null,
+                    // Pass academic metadata
+                    semesterNo: slot.semesterNo,
+                    programName: slot.programName,
+                    deptName: slot.deptName
                 });
             }));
         }));

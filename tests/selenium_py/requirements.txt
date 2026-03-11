@@ -1,0 +1,8 @@
+selenium
+webdriver-manager
+pytest
+//# To apply for leave (Faculty)
+//# python tests/selenium_py/test_leave_apply.py
+
+//# To approve leave (Admin)
+//# python tests/selenium_py/test_leave_approve.py

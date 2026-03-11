@@ -21,8 +21,7 @@ import { getFacultyScheduleForDate } from './timetableService';
 const getBackendUrl = () => {
     // If we're on localhost, assume backend is too. 
     // Otherwise use the current hostname (useful for mobile testing on same network)
-    const hostname = window.location.hostname;
-    return `http://${hostname}:5000`;
+    return 'https://voxlog-backend1.onrender.com';
 };
 
 const BACKEND_URL = getBackendUrl();

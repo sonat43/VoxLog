@@ -484,7 +484,7 @@ export const getHeadcount = async (imageBlob) => {
     formData.append('image', imageBlob, 'capture.jpg');
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 10000); // 10s timeout
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s timeout for Render cold start
 
     try {
         const response = await fetch(`${BACKEND_URL}/count-students`, {
@@ -498,7 +498,7 @@ export const getHeadcount = async (imageBlob) => {
         return await response.json();
     } catch (err) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') throw new Error('Headcount request timed out. Check connection.');
+        if (err.name === 'AbortError') throw new Error('Headcount request timed out after 60s. The server might be waking up, please try again.');
         throw err;
     }
 };
@@ -511,7 +511,7 @@ export const processRollCall = async (audioBlob, validRolls = null) => {
     }
 
     const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15s for audio processing
+    const timeoutId = setTimeout(() => controller.abort(), 60000); // 60s for Render cold start and audio processing
 
     try {
         const response = await fetch(`${BACKEND_URL}/process-rollcall`, {
@@ -525,7 +525,7 @@ export const processRollCall = async (audioBlob, validRolls = null) => {
         return await response.json();
     } catch (err) {
         clearTimeout(timeoutId);
-        if (err.name === 'AbortError') throw new Error('Roll call processing timed out.');
+        if (err.name === 'AbortError') throw new Error('Roll call processing timed out after 60s. The server might be waking up, please try again.');
         throw err;
     }
 };

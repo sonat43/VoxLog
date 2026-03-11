@@ -5,3 +5,4 @@ mediapipe
 SpeechRecognition
 pydub
 numpy
+gunicorn

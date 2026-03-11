@@ -21,6 +21,7 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import Logo from '../components/common/Logo';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }) => (
     <motion.button
@@ -159,25 +160,12 @@ const DashboardLayout = ({ children }) => {
                     >
                         {window.innerWidth >= 1024 ? null : (isSidebarOpen ? <X size={20} /> : <Menu size={20} />)}
                     </button>
-                    <img
-                        src="/logo.png"
-                        alt="VoxLog Logo"
-                        style={{
-                            height: '40px',
-                            width: 'auto',
-                            objectFit: 'contain'
-                        }}
-                    />
-                    <h2 className="hide-on-mobile" style={{
-                        fontSize: '1.25rem',
-                        fontWeight: 700,
-                        color: 'var(--color-primary)',
-                        margin: 0,
-                        letterSpacing: '-0.01em',
-                        fontFamily: 'serif'
-                    }}>
-                        VoxLog
-                    </h2>
+                    <div className="hide-on-mobile">
+                        <Logo size="medium" showText={true} />
+                    </div>
+                    <div className="show-on-mobile">
+                        <Logo size="medium" showText={false} />
+                    </div>
                 </div>
 
                 {/* Right Side Icons */}

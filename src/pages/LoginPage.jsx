@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext';
 import TrustFlow from '../components/TrustFlow';
 import LoginCard from '../components/LoginCard';
 import LoadingScreen from '../components/LoadingScreen';
+import Logo from '../components/common/Logo';
 import './LoginPage.css';
 
 const LoginPage = () => {
@@ -31,7 +32,7 @@ const LoginPage = () => {
             {/* Left Section: Info/Marketing (55%) */}
             <div className="info-section">
                 <div className="brand-header">
-                    <img src="/logo.png" alt="VoxLog Logo" className="logo-img" />
+                    <Logo size="large" showText={false} className="logo-img" />
                     <h1 className="brand-name">VoxLog</h1>
                 </div>
 

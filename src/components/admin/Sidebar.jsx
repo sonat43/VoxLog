@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import Logo from '../common/Logo';
 import {
     Home,
     Users,
@@ -74,18 +75,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
                 justifyContent: isOpen ? 'flex-start' : 'center',
                 borderBottom: '1px solid rgba(255, 255, 255, 0.05)'
             }}>
-                <img src="/logo.png" alt="Logo" style={{ height: '32px', width: 'auto' }} />
-                {isOpen && (
-                    <span style={{
-                        marginLeft: '0.75rem',
-                        fontWeight: '800',
-                        fontSize: '1.25rem',
-                        color: 'white',
-                        letterSpacing: '-0.02em'
-                    }}>
-                        VoxLog
-                    </span>
-                )}
+                <Logo size="medium" showText={isOpen} />
             </div>
 
             {/* Navigation */}

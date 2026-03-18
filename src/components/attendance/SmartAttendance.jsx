@@ -140,21 +140,25 @@ const SmartAttendance = ({ program, onClose }) => {
         video.style.opacity = '0.5';
         setTimeout(() => video.style.opacity = '1', 100);
 
-        console.log(`Video dimensions: ${video.videoWidth}x${video.videoHeight}`);
+        // Capture frame to canvas
         canvas.width = video.videoWidth;
         canvas.height = video.videoHeight;
         const ctx = canvas.getContext('2d');
         ctx.drawImage(video, 0, 0);
 
         setLoading(true);
+        setProcessingMessage("Analyzing image with AI...");
         setError(null);
 
         try {
             const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
             setCapturedImage(dataUrl);
 
+            setProcessingMessage("Uploading to server...");
             const res = await fetch(dataUrl);
             const blob = await res.blob();
+            
+            setProcessingMessage("Detecting students (Running AI Model)...");
             const result = await getHeadcount(blob);
             setHeadcount(result.count);
             if (result.filename) {
@@ -162,9 +166,11 @@ const SmartAttendance = ({ program, onClose }) => {
             }
             setStep('headcount');
         } catch (err) {
+            console.error("Capture Error:", err);
             setError("Capture failed: " + err.message);
         } finally {
             setLoading(false);
+            setProcessingMessage("");
         }
     };
 
@@ -596,19 +602,49 @@ const SmartAttendance = ({ program, onClose }) => {
             <AnimatePresence mode="wait">
                 {step === 'camera' && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <div style={{ position: 'relative', borderRadius: '1rem', overflow: 'hidden', background: '#000', marginBottom: '1.5rem', aspectRatio: '4/3' }}>
-                            <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', padding: '0.5rem 1rem', borderRadius: '2rem', fontSize: '0.8rem' }}>
-                                Step 1: Capture Whole Class
-                            </div>
+                        <div style={{ 
+                            position: 'relative', 
+                            borderRadius: '1rem', 
+                            overflow: 'hidden', 
+                            background: '#000', 
+                            marginBottom: '1rem', 
+                            maxWidth: '600px', 
+                            margin: '0 auto 1.5rem',
+                            aspectRatio: '16/9',
+                            maxHeight: '40vh' 
+                        }}>
+                            {capturedImage && loading ? (
+                                <div style={{ width: '100%', height: '100%', position: 'relative' }}>
+                                    <img src={capturedImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Analyzing" />
+                                    <div className="scanning-line"></div>
+                                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(59, 130, 246, 0.2)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <div style={{ background: 'rgba(0,0,0,0.6)', padding: '0.5rem 1rem', borderRadius: '0.5rem', color: 'white', fontSize: '0.8rem', fontWeight: 600 }}>
+                                            AI Analysis in Progress...
+                                        </div>
+                                    </div>
+                                </div>
+                            ) : (
+                                <>
+                                    <video ref={videoRef} autoPlay playsInline style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    <div style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'rgba(0,0,0,0.5)', padding: '0.4rem 0.8rem', borderRadius: '2rem', fontSize: '0.75rem' }}>
+                                        Step 1: Capture Whole Class
+                                    </div>
+                                </>
+                            )}
                         </div>
                         <canvas ref={canvasRef} style={{ display: 'none' }} />
-                        <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                            {loading && (
+                                <div style={{ color: 'var(--color-primary)', fontSize: '0.9rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                    <RefreshCw className="animate-spin" size={16} />
+                                    {processingMessage}
+                                </div>
+                            )}
                             <button
                                 onClick={captureImage}
                                 disabled={loading || !cameraReady}
                                 style={{
-                                    padding: '1rem 2rem',
+                                    padding: '0.8rem 2rem',
                                     background: cameraReady ? 'var(--color-primary)' : 'var(--color-secondary)',
                                     color: 'white',
                                     border: 'none',
@@ -622,8 +658,8 @@ const SmartAttendance = ({ program, onClose }) => {
                                     boxShadow: cameraReady ? '0 4px 15px var(--color-accent-light)' : 'none'
                                 }}
                             >
-                                {loading ? <RefreshCw className="animate-spin" /> : <Camera />}
-                                {!cameraReady ? 'Initializing...' : 'Take Picture'}
+                                {loading ? null : <Camera />}
+                                {!cameraReady ? 'Initializing...' : (loading ? 'Processing...' : 'Take Picture')}
                             </button>
                         </div>
                     </motion.div>
@@ -631,17 +667,33 @@ const SmartAttendance = ({ program, onClose }) => {
 
                 {step === 'headcount' && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} style={{ textAlign: 'center' }}>
-                        <div style={{ marginBottom: '2rem' }}>
-                            <div style={{ fontSize: '1.5rem', color: '#94a3b8', marginBottom: '0.5rem' }}>Students Counted</div>
-                            <div style={{ fontSize: '5rem', fontWeight: 800, color: 'var(--color-primary)' }}>{headcount}</div>
+                        <div style={{ 
+                            maxWidth: '400px', 
+                            margin: '0 auto 1.5rem', 
+                            borderRadius: '1rem', 
+                            overflow: 'hidden',
+                            border: '4px solid var(--color-primary)',
+                            aspectRatio: '16/9',
+                            position: 'relative'
+                        }}>
+                             <img src={capturedImage} style={{ width: '100%', height: '100%', objectFit: 'cover' }} alt="Captured" />
+                             <div style={{ position: 'absolute', bottom: '0', left: '0', right: '0', background: 'rgba(0,0,0,0.6)', color: 'white', padding: '0.25rem', fontSize: '0.7rem' }}>
+                                Captured Evidence
+                             </div>
                         </div>
-                        <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>Next, please say the roll numbers of students who are present.</p>
+                        <div style={{ marginBottom: '1.5rem' }}>
+                            <div style={{ fontSize: '1.1rem', color: '#94a3b8', marginBottom: '0.1rem' }}>Students Detected</div>
+                            <div style={{ fontSize: '3.5rem', fontWeight: 800, color: 'var(--color-primary)', lineHeight: 1 }}>{headcount}</div>
+                        </div>
+                        <p style={{ color: '#94a3b8', marginBottom: '1.5rem', fontSize: '0.9rem', maxWidth: '400px', margin: '0 auto 1.5rem' }}>
+                            The AI has counted <strong>{headcount}</strong> people. Next, proceed to roll call to identify them by voice.
+                        </p>
                         <div style={{ display: 'flex', justifyContent: 'center', gap: '1rem' }}>
-                            <button onClick={resetFlow} style={{ padding: '0.75rem 1.5rem', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '0.5rem', cursor: 'pointer' }}>
-                                Retake Picture
+                            <button onClick={resetFlow} style={{ padding: '0.6rem 1.25rem', background: 'transparent', border: '1px solid #475569', color: '#94a3b8', borderRadius: '0.5rem', cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Retake
                             </button>
-                            <button onClick={() => setStep('voice')} style={{ padding: '0.75rem 1.5rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer' }}>
-                                Start Roll Call
+                            <button onClick={() => setStep('voice')} style={{ padding: '0.6rem 1.5rem', background: 'var(--color-primary)', color: 'white', border: 'none', borderRadius: '0.5rem', fontWeight: 600, cursor: 'pointer', fontSize: '0.9rem' }}>
+                                Continue to Voice
                             </button>
                         </div>
                     </motion.div>
@@ -775,16 +827,16 @@ const SmartAttendance = ({ program, onClose }) => {
 
                 {step === 'preview' && (
                     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <h3 style={{ fontSize: '1.25rem', fontWeight: 700 }}>Attendance Preview</h3>
-                            <div style={{ display: 'flex', gap: '1rem' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                            <h3 style={{ fontSize: '1.1rem', fontWeight: 700 }}>Attendance Preview</h3>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Headcount</div>
-                                    <div style={{ fontWeight: 700 }}>{headcount}</div>
+                                    <div style={{ color: '#94a3b8', fontSize: '0.6rem' }}>Photo Count</div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.9rem' }}>{headcount}</div>
                                 </div>
                                 <div style={{ textAlign: 'center' }}>
-                                    <div style={{ color: '#94a3b8', fontSize: '0.7rem' }}>Present</div>
-                                    <div style={{ fontWeight: 700, color: Object.values(attendanceMap).filter(v => v === 'Present').length === headcount ? 'var(--color-success)' : 'var(--color-warning)' }}>
+                                    <div style={{ color: '#94a3b8', fontSize: '0.6rem' }}>Identified</div>
+                                    <div style={{ fontWeight: 700, fontSize: '0.9rem', color: Object.values(attendanceMap).filter(v => v === 'Present').length === headcount ? 'var(--color-success)' : 'var(--color-warning)' }}>
                                         {Object.values(attendanceMap).filter(v => v === 'Present').length}
                                     </div>
                                 </div>
@@ -879,7 +931,7 @@ const SmartAttendance = ({ program, onClose }) => {
                             </div>
                         )}
 
-                        <div className="attendance-student-list" style={{ maxHeight: '350px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1.5rem' }}>
+                        <div className="attendance-student-list" style={{ maxHeight: '250px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1rem' }}>
                             {students.map(student => (
                                 <div key={student.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
@@ -953,6 +1005,21 @@ const SmartAttendance = ({ program, onClose }) => {
                 @keyframes pulse-text {
                     0%, 100% { opacity: 1; }
                     50% { opacity: 0.5; }
+                }
+                .scanning-line {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    width: 100%;
+                    height: 4px;
+                    background: linear-gradient(to right, transparent, var(--color-primary), transparent);
+                    box-shadow: 0 0 15px var(--color-primary);
+                    animation: scan 2s linear infinite;
+                    z-index: 5;
+                }
+                @keyframes scan {
+                    0% { top: 0; }
+                    100% { top: 100%; }
                 }
             `}} />
         </div >

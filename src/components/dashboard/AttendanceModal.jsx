@@ -23,10 +23,19 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
     const [holidayInfo, setHolidayInfo] = useState({ isHoliday: false, reason: null });
     const [checkingHoliday, setCheckingHoliday] = useState(false);
 
+    // Deep compare serializable programs to prevent unnecessary effect triggers
+    const programsStr = JSON.stringify(programs || []);
+
     // Reset state on open
     useEffect(() => {
         const checkHolidayAndInit = async () => {
             if (isOpen) {
+                // If we already have holiday info for today, don't show the loading state again
+                if (holidayInfo.lastCheckedDate === new Date().toDateString()) {
+                    setCheckingHoliday(false);
+                    return;
+                }
+
                 setCheckingHoliday(true);
                 try {
                     const d = new Date();
@@ -35,32 +44,32 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                     const day = String(d.getDate()).padStart(2, '0');
                     const today = `${year}-${month}-${day}`;
                     const hInfo = await checkIfHoliday(today);
-                    setHolidayInfo(hInfo);
+                    setHolidayInfo({ ...hInfo, lastCheckedDate: d.toDateString() });
 
                     if (!hInfo.isHoliday) {
-                        if (programs && programs.length === 1 && programs[0].status === 'active') {
+                        // Only auto-advance to step 3 if we are on step 1 (not currently in a session)
+                        if (step === 1 && programs && programs.length === 1 && programs[0].status === 'active') {
                             setSelectedProgram(programs[0]);
                             setMode('smart');
                             setStep(3);
-                        } else {
-                            setStep(1);
-                            setSelectedProgram(null);
-                            setMode(null);
                         }
                     }
                 } catch (e) {
                     console.error("Holiday fetch error", e);
                 } finally {
                     setCheckingHoliday(false);
-                    setAiConfidence(0);
-                    setIsSubstitute(false);
-                    setOriginalFacultyId(null);
-                    setVerifying(false);
+                    // Only reset these if we're not currently in an active session (step 1)
+                    if (step === 1) {
+                        setAiConfidence(0);
+                        setIsSubstitute(false);
+                        setOriginalFacultyId(null);
+                        setVerifying(false);
+                    }
                 }
             }
         };
         checkHolidayAndInit();
-    }, [isOpen, programs]);
+    }, [isOpen, programsStr]); // Use stringified programs for stability
 
     // Simulate AI Confidence Calculation
     useEffect(() => {

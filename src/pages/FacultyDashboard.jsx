@@ -13,6 +13,8 @@ import { checkIfHoliday } from '../services/calendarService';
 import { getSemestersByClassTeacher, getStudentsBySemester } from '../services/academicService';
 import ComposeEmailModal from '../components/common/ComposeEmailModal';
 import { Mail } from 'lucide-react';
+import { formatTime12Hour, isCurrentTimeInRange } from '../utils/timeFormat';
+import { fetchSettings } from '../services/settingsService';
 
 const FacultyDashboard = () => {
     const { user } = useAuth();
@@ -32,6 +34,13 @@ const FacultyDashboard = () => {
     const [showAttendanceModal, setShowAttendanceModal] = useState(false);
     const [classAverages, setClassAverages] = useState([]);
     const [birthdays, setBirthdays] = useState([]);
+    const [gracePeriodHours, setGracePeriodHours] = useState(0);
+
+    const [currentTime, setCurrentTime] = useState(new Date());
+    useEffect(() => {
+        const timer = setInterval(() => setCurrentTime(new Date()), 60000); // refresh every minute to update button status
+        return () => clearInterval(timer);
+    }, []);
 
     // Initialize with current day index mapped to name
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -101,6 +110,16 @@ const FacultyDashboard = () => {
                     setBirthdays(bdays);
                 } catch (error) {
                     console.error("Dashboard data error (New Widgets):", error);
+                } 
+
+                // 4. Fetch Global Settings for Grace Period
+                try {
+                    const settings = await fetchSettings();
+                    if (settings?.attendance?.facultyGracePeriodHours) {
+                        setGracePeriodHours(settings.attendance.facultyGracePeriodHours);
+                    }
+                } catch (error) {
+                    console.error("Error fetching settings:", error);
                 } finally {
                     setLoading(false);
                 }
@@ -243,18 +262,30 @@ const FacultyDashboard = () => {
                 } else {
                     setDailyAttendanceStatus(null);
                 }
+            } catch (e) {
+                console.error("Error fetching daily attendance status:", e);
+            }
+        };
 
-                // Check Holiday Status
+        const fetchHolidayStatus = async () => {
+            try {
+                const todayDate = new Date();
+                const year = todayDate.getFullYear();
+                const month = String(todayDate.getMonth() + 1).padStart(2, '0');
+                const day = String(todayDate.getDate()).padStart(2, '0');
+                const dateString = `${year}-${month}-${day}`;
+                
                 const hInfo = await checkIfHoliday(dateString);
                 setHolidayInfo(hInfo);
             } catch (e) {
-                console.error("Error fetching daily attendance status:", e);
+                console.error("Error fetching holiday status:", e);
             }
         };
 
         fetchData();
         fetchNotifications();
         fetchDailyAttendance();
+        fetchHolidayStatus();
     }, [courses, timetables, user, showAttendanceModal]);
 
     const stats = [
@@ -278,27 +309,6 @@ const FacultyDashboard = () => {
     const itemVariants = {
         hidden: { opacity: 0, y: 20 },
         show: { opacity: 1, y: 0 }
-    };
-
-    const formatTimeRange = (timeRange) => {
-        if (!timeRange || typeof timeRange !== 'string') return '';
-        const parts = timeRange.split(' - ');
-        if (parts.length < 2) return timeRange;
-
-        const [start, end] = parts;
-
-        const to12Hour = (time) => {
-            if (!time || typeof time !== 'string' || !time.includes(':')) return time || '';
-            const [hours, minutes] = time.split(':');
-            const h = parseInt(hours, 10);
-            if (isNaN(h)) return time;
-            const m = minutes || '00';
-            const ampm = h >= 12 ? 'PM' : 'AM';
-            const h12 = h % 12 || 12;
-            return `${h12}:${m} ${ampm}`;
-        };
-
-        return `${to12Hour(start)} - ${to12Hour(end)}`;
     };
 
     const handleMessageAllStudents = () => {
@@ -510,7 +520,7 @@ const FacultyDashboard = () => {
                                                     Period {session.periodIndex !== undefined ? session.periodIndex + 1 : '?'}
                                                 </span>
                                                 <span>•</span>
-                                                <span>{formatTimeRange(session.timeRange)}</span>
+                                                <span>{formatTime12Hour(session.timeRange)}</span>
                                             </div>
                                             <h2 style={{ color: 'var(--color-text-main)', fontSize: '1.25rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                                 {session.name}
@@ -539,52 +549,65 @@ const FacultyDashboard = () => {
                                             </div>
                                         </div>
                                     </div>
-                                    <motion.button
-                                        whileHover={(!session.isAttendanceTaken && !holidayInfo.isHoliday) ? { scale: 1.05 } : {}}
-                                        whileTap={(!session.isAttendanceTaken && !holidayInfo.isHoliday) ? { scale: 0.95 } : {}}
-                                        onClick={() => {
-                                            if (!session.isAttendanceTaken && !holidayInfo.isHoliday) {
-                                                setSelectedClassForAttendance(session);
-                                                setShowAttendanceModal(true);
-                                            }
-                                        }}
-                                        disabled={session.isAttendanceTaken || holidayInfo.isHoliday}
-                                        style={{
-                                            background: session.isAttendanceTaken
-                                                ? 'rgba(16, 185, 129, 0.1)'
-                                                : holidayInfo.isHoliday
-                                                    ? 'rgba(255, 255, 255, 0.05)'
-                                                    : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                                            border: session.isAttendanceTaken ? '1px solid rgba(16, 185, 129, 0.3)' : (holidayInfo.isHoliday ? '1px solid rgba(255,255,255,0.1)' : 'none'),
-                                            borderRadius: '1rem',
-                                            padding: '0.75rem 1.5rem',
-                                            color: session.isAttendanceTaken ? '#34d399' : (holidayInfo.isHoliday ? '#94a3b8' : 'white'),
-                                            fontWeight: 600,
-                                            fontSize: '1rem',
-                                            cursor: (session.isAttendanceTaken || holidayInfo.isHoliday) ? 'default' : 'pointer',
-                                            boxShadow: (session.isAttendanceTaken || holidayInfo.isHoliday) ? 'none' : '0 4px 15px rgba(16, 185, 129, 0.3)',
-                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
-                                            whiteSpace: 'nowrap',
-                                            opacity: holidayInfo.isHoliday ? 0.5 : 1
-                                        }}
-                                    >
-                                        {session.isAttendanceTaken ? (
-                                            <>
-                                                <CheckCircle size={18} />
-                                                Completed
-                                            </>
-                                        ) : holidayInfo.isHoliday ? (
-                                            <>
-                                                <Calendar size={18} />
-                                                Holiday
-                                            </>
-                                        ) : (
-                                            <>
-                                                <Users size={18} />
-                                                Attendance
-                                            </>
-                                        )}
-                                    </motion.button>
+                                    {(() => {
+                                        const timeStatus = isCurrentTimeInRange(session.timeRange, gracePeriodHours);
+                                        const isDisabled = session.isAttendanceTaken || holidayInfo.isHoliday || timeStatus.isBefore || timeStatus.isAfter;
+                                        let buttonText = "Attendance";
+                                        let buttonIcon = <Users size={18} />;
+
+                                        if (session.isAttendanceTaken) {
+                                            buttonText = "Completed";
+                                            buttonIcon = <CheckCircle size={18} />;
+                                        } else if (holidayInfo.isHoliday) {
+                                            buttonText = "Holiday";
+                                            buttonIcon = <Calendar size={18} />;
+                                        } else if (timeStatus.isBefore) {
+                                            buttonText = "Upcoming";
+                                            buttonIcon = <Clock size={18} />;
+                                        } else if (timeStatus.isAfter) {
+                                            buttonText = "Time Over";
+                                            buttonIcon = <Clock size={18} />;
+                                        } else {
+                                            buttonText = "Take Attendance";
+                                        }
+
+                                        return (
+                                            <motion.button
+                                                whileHover={!isDisabled ? { scale: 1.05 } : {}}
+                                                whileTap={!isDisabled ? { scale: 0.95 } : {}}
+                                                onClick={() => {
+                                                    if (!isDisabled) {
+                                                        setSelectedClassForAttendance(session);
+                                                        setShowAttendanceModal(true);
+                                                    }
+                                                }}
+                                                disabled={isDisabled}
+                                                style={{
+                                                    background: session.isAttendanceTaken
+                                                        ? 'rgba(16, 185, 129, 0.1)'
+                                                        : holidayInfo.isHoliday
+                                                            ? 'rgba(255, 255, 255, 0.05)'
+                                                            : (timeStatus.isBefore || timeStatus.isAfter) 
+                                                                ? 'rgba(100, 116, 139, 0.1)'
+                                                                : 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                                                    border: session.isAttendanceTaken ? '1px solid rgba(16, 185, 129, 0.3)' : (holidayInfo.isHoliday || timeStatus.isBefore || timeStatus.isAfter ? '1px solid rgba(255,255,255,0.1)' : 'none'),
+                                                    borderRadius: '1rem',
+                                                    padding: '0.75rem 1.5rem',
+                                                    color: session.isAttendanceTaken ? '#34d399' : (holidayInfo.isHoliday ? '#94a3b8' : (timeStatus.isBefore || timeStatus.isAfter ? '#cbd5e1' : 'white')),
+                                                    fontWeight: 600,
+                                                    fontSize: '1rem',
+                                                    cursor: isDisabled ? 'default' : 'pointer',
+                                                    boxShadow: isDisabled ? 'none' : '0 4px 15px rgba(16, 185, 129, 0.3)',
+                                                    display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                                    whiteSpace: 'nowrap',
+                                                    opacity: (holidayInfo.isHoliday || timeStatus.isBefore || timeStatus.isAfter) ? 0.6 : 1
+                                                }}
+                                            >
+                                                {buttonIcon}
+                                                {buttonText}
+                                            </motion.button>
+                                        );
+                                    })()}
                                 </motion.div>
                             ))}
                         </div>
@@ -831,7 +854,7 @@ const FacultyDashboard = () => {
                                             background: 'rgba(255,255,255,0.05)', color: '#94a3b8',
                                             fontSize: '0.85rem'
                                         }}>
-                                            {formatTimeRange(cls.timeRange)}
+                                            {formatTime12Hour(cls.timeRange)}
                                         </div>
                                     </motion.div>
                                 ));

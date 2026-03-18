@@ -3,6 +3,7 @@ import { getDepartments, getPrograms, getSemesters, getCourses } from '../../../
 import { saveTimetable, getTimetable } from '../../../services/timetableService';
 import Toast from '../../../components/common/Toast';
 import { Calendar, Save, Trash2, Clock, X, Plus } from 'lucide-react';
+import { formatTime12Hour } from '../../../utils/timeFormat';
 
 const Timetable = () => {
     // Filters
@@ -216,7 +217,7 @@ const Timetable = () => {
                                 {periods.map((p, i) => (
                                     <th key={i} style={{ ...thStyle, textAlign: 'center' }}>
                                         <div style={{ fontSize: '0.9rem', color: 'white' }}>Period {i + 1}</div>
-                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal' }}>{p.start} - {p.end}</div>
+                                        <div style={{ fontSize: '0.75rem', color: '#94a3b8', fontWeight: 'normal' }}>{formatTime12Hour(`${p.start} - ${p.end}`)}</div>
                                     </th>
                                 ))}
                             </tr>
@@ -274,7 +275,7 @@ const Timetable = () => {
                         </div>
                         <div style={{ padding: '16px' }}>
                             <p style={{ color: '#9ca3af', fontSize: '0.9rem', marginBottom: '16px' }}>
-                                Select a course for <strong>{editingSlot?.day}</strong> at <strong>{periods[editingSlot?.periodIndex].start}</strong>
+                                Select a course for <strong>{editingSlot?.day}</strong> at <strong>{editingSlot ? formatTime12Hour(periods[editingSlot.periodIndex].start) : ''}</strong>
                             </p>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px', maxHeight: '300px', overflowY: 'auto' }}>

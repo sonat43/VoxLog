@@ -35,8 +35,8 @@ const AcademicMonthView = ({ events = [], onDateClick, readOnly = false }) => {
             // We can handle this via CSS by rendering both and hiding one.
             days.push(
                 <div key={i} className="calendar-day-header" style={{ textAlign: 'center', fontWeight: 600, color: '#94a3b8', padding: '10px 0', textTransform: 'uppercase' }}>
-                    <span className="hidden md:inline">{format(addDays(startDate, i), 'EEEE')}</span>
-                    <span className="inline md:hidden">{format(addDays(startDate, i), 'EEEEE')}</span>
+                    <span className="full-day-name">{format(addDays(startDate, i), 'EEEE')}</span>
+                    <span className="short-day-name">{format(addDays(startDate, i), 'EEEEE')}</span>
                 </div>
             );
         }
@@ -192,6 +192,8 @@ const AcademicMonthView = ({ events = [], onDateClick, readOnly = false }) => {
                 .calendar-events-container {
                     margin-top: 8px;
                 }
+                .full-day-name { display: inline; }
+                .short-day-name { display: none; }
                 
                 @media (max-width: 768px) {
                     .calendar-grid {
@@ -227,6 +229,8 @@ const AcademicMonthView = ({ events = [], onDateClick, readOnly = false }) => {
                         margin-top: 4px;
                         gap: 2px !important;
                     }
+                    .full-day-name { display: none; }
+                    .short-day-name { display: inline; }
                 }
             `}</style>
 

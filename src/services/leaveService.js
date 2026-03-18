@@ -12,6 +12,7 @@ import {
     deleteDoc,
     getDoc
 } from 'firebase/firestore';
+import { createNotification, notifyAdmins } from './notificationService';
 
 // ===========================
 // LEAVE MANAGEMENT
@@ -20,11 +21,24 @@ import {
 export const applyLeave = async (data) => {
     // data: { facultyId, facultyName, fromDate, toDate, reason, type }
     try {
-        await addDoc(collection(db, "leave_requests"), {
+        const docRef = await addDoc(collection(db, "leave_requests"), {
             ...data,
             status: 'Pending',
             createdAt: serverTimestamp()
         });
+
+        // In-App Notification for Admins
+        try {
+            await notifyAdmins(
+                'Leave',
+                `${data.facultyName} has applied for leave (${data.fromDate} to ${data.toDate})`,
+                '/admin/leaves',
+                docRef.id
+            );
+        } catch (notifErr) {
+            console.error("Failed to notify admins of leave request:", notifErr);
+        }
+
         return { success: true };
     } catch (error) {
         console.error("Error applying for leave:", error);
@@ -136,6 +150,19 @@ export const updateLeaveStatus = async (requestId, status, remarks = "") => {
                     } catch (mailError) {
                         console.error("Failed to send leave status email:", mailError);
                     }
+                }
+
+                // In-App Notification for Faculty
+                try {
+                    await createNotification(
+                        leaveData.facultyId,
+                        'Leave',
+                        `Your leave request from ${leaveData.fromDate} has been ${status.toUpperCase()}${remarks ? `: ${remarks}` : '.'}`,
+                        '/faculty/leaves',
+                        requestId
+                    );
+                } catch (notifErr) {
+                    console.error("Failed to create in-app notification for leave status:", notifErr);
                 }
             }
         }

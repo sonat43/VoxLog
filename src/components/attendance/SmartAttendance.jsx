@@ -518,6 +518,8 @@ const SmartAttendance = ({ program, onClose }) => {
                 presentStudentIds: presentStudentIds,
                 headcount: headcount,
                 voiceCount: presentStudentIds.length,
+                role: program.isSubstitution ? 'Substitute' : 'Regular',
+                originalFacultyId: program.originalFacultyId || null,
                 evidence: evidence // Pass evidence filenames
             });
             onClose();
@@ -581,7 +583,7 @@ const SmartAttendance = ({ program, onClose }) => {
                     </span>
                 </div>
                 <div style={{ color: 'var(--color-text-muted)', fontSize: '0.9rem', marginTop: '0.25rem' }}>
-                    {program?.code} • Section {program?.section || 'N/A'}
+                    {program?.code} • {program?.semesterName || `Class: ${program?.semesterNo || 'N/A'}`} {program?.section && program.section !== 'N/A' ? ` • Section ${program.section}` : ''}
                 </div>
             </div>
             {error && (
@@ -877,7 +879,7 @@ const SmartAttendance = ({ program, onClose }) => {
                             </div>
                         )}
 
-                        <div style={{ maxHeight: '220px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1.5rem' }}>
+                        <div className="attendance-student-list" style={{ maxHeight: '350px', overflowY: 'auto', background: 'rgba(30, 41, 59, 0.4)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.05)', marginBottom: '1.5rem' }}>
                             {students.map(student => (
                                 <div key={student.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.75rem 1rem', borderBottom: '1px solid rgba(255,255,255,0.05)' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>

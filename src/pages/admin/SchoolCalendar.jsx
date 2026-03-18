@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { format } from 'date-fns';
+import { format, isBefore, startOfDay } from 'date-fns';
 import AcademicMonthView from '../../components/common/AcademicMonthView';
 import { db } from '../../services/firebase';
 import { collection, getDocs, addDoc, deleteDoc, updateDoc, doc, query, where } from 'firebase/firestore';
 import { Trash2, Plus, Calendar, Edit2 } from 'lucide-react';
 import Toast from '../../components/common/Toast';
+import { notifyAllFaculty } from '../../services/notificationService';
 
 const SchoolCalendar = () => {
     const [events, setEvents] = useState([]);
@@ -37,6 +38,12 @@ const SchoolCalendar = () => {
     };
 
     const handleDateClick = (date, dayEvents) => {
+        // Prevent editing or adding events in the past
+        if (isBefore(date, startOfDay(new Date()))) {
+            setToast({ type: 'error', message: "Cannot modify calendar events for past dates." });
+            return;
+        }
+
         // Use date-fns format to get the local date string instead of toISOString() which uses UTC
         const dateStr = format(date, 'yyyy-MM-dd');
         setSelectedDate(dateStr);
@@ -54,13 +61,31 @@ const SchoolCalendar = () => {
                     title,
                     type
                 });
+                
+                // Notify faculty of update
+                await notifyAllFaculty(
+                    "Calendar",
+                    `Calendar Updated: ${title} on ${selectedDate} (${type})`,
+                    "/faculty/academic-calendar",
+                    editingEventId
+                );
+                
                 setToast({ type: 'success', message: "Event updated successfully" });
             } else {
-                await addDoc(collection(db, "academic_events"), {
+                const docRef = await addDoc(collection(db, "academic_events"), {
                     date: selectedDate,
                     title,
                     type
                 });
+                
+                // Notify faculty of new event
+                await notifyAllFaculty(
+                    "Calendar",
+                    `New Calendar Event: ${title} on ${selectedDate} (${type})`,
+                    "/faculty/academic-calendar",
+                    docRef.id
+                );
+                
                 setToast({ type: 'success', message: "Event added successfully" });
             }
             setShowModal(false);

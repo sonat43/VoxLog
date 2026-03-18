@@ -63,12 +63,12 @@ def process_rollcall():
     
     # Save Audio Locally
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"rollcall_{timestamp}.wav"
+    filename = f"rollcall_{timestamp}.webm"
     filepath = os.path.join(AUDIO_FOLDER, filename)
     with open(filepath, 'wb') as f:
         f.write(audio_bytes)
         
-    text = stt_proc.process_audio(audio_bytes)
+    text = stt_proc.process_audio(filepath)
     roll_numbers = stt_proc.extract_roll_numbers(text, valid_rolls=valid_rolls)
     
     print(f"[SUCCESS] Processed Roll Call. Text: '{text}', Found: {roll_numbers}")

@@ -21,6 +21,7 @@ import {
 import { useNavigate, useLocation, Outlet } from 'react-router-dom';
 import { db } from '../services/firebase';
 import { collection, query, where, getDocs } from 'firebase/firestore';
+import NotificationCenter from '../components/common/NotificationCenter';
 
 const SidebarItem = ({ icon: Icon, label, active, onClick, collapsed }) => (
     <motion.button
@@ -57,34 +58,7 @@ const DashboardLayout = ({ children }) => {
     const navigate = useNavigate();
     const location = useLocation();
     const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-    const [unreadCount, setUnreadCount] = useState(0);
-    const [showNotifications, setShowNotifications] = useState(false);
-    const [notificationContent, setNotificationContent] = useState({ greeting: '', quote: '' });
     const [profilePic, setProfilePic] = useState(null);
-
-    // Mock Notifications Data
-    const quotes = [
-        "The art of teaching is the art of assisting discovery.",
-        "Education is not the filling of a pail, but the lighting of a fire.",
-        "A good teacher can inspire hope, ignite the imagination, and instill a love of learning.",
-        "Teaching is the one profession that creates all other professions.",
-        "Your heart is slightly larger than the average human heart, but that's because you're a teacher."
-    ];
-
-    const generateNotification = () => {
-        const hour = new Date().getHours();
-        let greeting = 'Good Morning';
-        if (hour >= 12 && hour < 17) greeting = 'Good Afternoon';
-        else if (hour >= 17) greeting = 'Good Evening';
-
-        const randomQuote = quotes[Math.floor(Math.random() * quotes.length)];
-        setNotificationContent({ greeting, quote: randomQuote });
-    };
-
-    const toggleNotifications = () => {
-        if (!showNotifications) generateNotification();
-        setShowNotifications(!showNotifications);
-    };
 
     React.useEffect(() => {
         if (!user?.uid) return;
@@ -99,16 +73,7 @@ const DashboardLayout = ({ children }) => {
         // Listen for updates from UserProfile
         window.addEventListener('profile-pic-updated', loadProfilePic);
 
-        const fetchUnread = async () => {
-            try {
-                const q = query(collection(db, "notifications"), where("userId", "==", user.uid), where("read", "==", false));
-                const snap = await getDocs(q);
-                setUnreadCount(snap.size);
-            } catch (e) {
-                console.error("Failed to fetch notifications", e);
-            }
-        };
-        fetchUnread();
+        // NotificationCenter handles its own fetching, so we removed the mock fetchUnread here.
 
         return () => window.removeEventListener('profile-pic-updated', loadProfilePic);
     }, [user]);
@@ -182,70 +147,7 @@ const DashboardLayout = ({ children }) => {
 
                 {/* Right Side Icons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
-                    <div style={{ position: 'relative' }}>
-                        <button
-                            onClick={toggleNotifications}
-                            style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: 'var(--color-text-muted)',
-                                cursor: 'pointer',
-                                position: 'relative',
-                                padding: '0.5rem',
-                                borderRadius: '50%',
-                                transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-bg)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                        >
-                            <Bell size={20} />
-                            <span style={{
-                                position: 'absolute',
-                                top: 4,
-                                right: 4,
-                                minWidth: '8px',
-                                height: '8px',
-                                background: 'var(--color-error)',
-                                borderRadius: '50%',
-                                display: 'block'
-                            }} />
-                        </button>
-
-                        <AnimatePresence>
-                            {showNotifications && (
-                                <motion.div
-                                    initial={{ opacity: 0, y: 10 }}
-                                    animate={{ opacity: 1, y: 0 }}
-                                    exit={{ opacity: 0, y: 10 }}
-                                    style={{
-                                        position: 'absolute',
-                                        top: '120%',
-                                        right: 0,
-                                        width: '320px',
-                                        background: 'var(--color-surface)',
-                                        border: '1px solid var(--color-border)',
-                                        borderRadius: '0.75rem',
-                                        boxShadow: 'var(--shadow-lg)',
-                                        zIndex: 50,
-                                        overflow: 'hidden'
-                                    }}
-                                >
-                                    <div style={{ padding: '1rem', borderBottom: '1px solid var(--color-border)', fontWeight: 600 }}>
-                                        Notifications
-                                    </div>
-                                    <div style={{ padding: '1.5rem', textAlign: 'left' }}>
-                                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--color-primary)', marginBottom: '0.5rem' }}>
-                                            {notificationContent.greeting}, {user?.displayName || user?.email?.split('@')[0] || 'Faculty'}!
-                                        </div>
-                                        <div style={{ fontStyle: 'italic', color: 'var(--color-text-muted)', lineHeight: '1.5' }}>
-                                            "{notificationContent.quote}"
-                                        </div>
-                                    </div>
-
-                                </motion.div>
-                            )}
-                        </AnimatePresence>
-                    </div>
+                    <NotificationCenter />
 
                     <div style={{
                         width: '36px',

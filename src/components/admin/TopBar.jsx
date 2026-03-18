@@ -2,6 +2,7 @@ import React from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Search, Bell, LogOut, User as UserIcon, Menu } from 'lucide-react';
+import NotificationCenter from '../common/NotificationCenter';
 
 const TopBar = ({ isOpen, toggleSidebar }) => {
     const { user, logout } = useAuth();
@@ -109,15 +110,7 @@ const TopBar = ({ isOpen, toggleSidebar }) => {
                 </div>
 
                 {/* Notifications */}
-                <button style={{ background: 'none', border: 'none', cursor: 'pointer', position: 'relative' }}>
-                    <Bell size={20} color="#9ca3af" />
-                    <span style={{
-                        position: 'absolute', top: '-2px', right: '-2px',
-                        width: '8px', height: '8px',
-                        backgroundColor: '#ef4444',
-                        borderRadius: '50%'
-                    }}></span>
-                </button>
+                <NotificationCenter />
 
                 {/* Vertical Divider */}
                 <div style={{ width: '1px', height: '24px', backgroundColor: 'rgba(255,255,255,0.1)' }}></div>

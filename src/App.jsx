@@ -1,5 +1,5 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import LoginPage from './pages/LoginPage';
 import FacultyDashboard from './pages/FacultyDashboard';
@@ -45,13 +45,14 @@ import SubstitutionPage from './pages/faculty/SubstitutionPage';
 // Protected Route Component
 const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, role, loading } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return <LoadingScreen />;
   }
 
   if (!user) {
-    return <Navigate to="/" />;
+    return <Navigate to="/" state={{ from: location }} replace />;
   }
 
   if (requiredRole && role !== requiredRole) {

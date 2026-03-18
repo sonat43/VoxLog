@@ -1,17 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import DataTable from '../../../components/admin/DataTable';
 import SimpleModal from '../../../components/admin/academic/SimpleModal';
-import { getCourses, addCourse, getPrograms, getSemesters, updateCourse, deleteCourse } from '../../../services/academicService';
+import { getCourses, addCourse, getPrograms, getSemesters, updateCourse, deleteCourse, getDepartments } from '../../../services/academicService';
 import Toast from '../../../components/common/Toast';
 import ConfirmModal from '../../../components/common/ConfirmModal';
 import SyllabusModal from '../../../components/admin/academic/SyllabusModal';
-import { BookOpen, Edit, Trash2 } from 'lucide-react';
+import { BookOpen, Edit, Trash2, Filter } from 'lucide-react';
 
 const Courses = () => {
     const [courses, setCourses] = useState([]);
     const [programs, setPrograms] = useState([]);
     const [semesters, setSemesters] = useState([]);
+    const [departments, setDepartments] = useState([]);
     const [loading, setLoading] = useState(true);
+
+    // Filters
+    const [filterDepartmentId, setFilterDepartmentId] = useState('');
+    const [filterProgramId, setFilterProgramId] = useState('');
+    const [filterSemesterId, setFilterSemesterId] = useState('');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isSyllabusModalOpen, setIsSyllabusModalOpen] = useState(false);
@@ -24,15 +30,17 @@ const Courses = () => {
     const fetchData = async () => {
         setLoading(true);
         try {
-            const [coursesData, programsData, semestersData] = await Promise.all([
+            const [coursesData, programsData, semestersData, departmentsData] = await Promise.all([
                 getCourses(),
                 getPrograms(),
-                getSemesters()
+                getSemesters(),
+                getDepartments()
             ]);
 
             setCourses(coursesData);
             setPrograms(programsData);
             setSemesters(semestersData);
+            setDepartments(departmentsData);
         } catch (error) {
             console.error("Courses Fetch Error:", error);
             setToast({ message: "Failed to load data", type: "error" });
@@ -185,10 +193,39 @@ const Courses = () => {
         </div>
     );
 
-    // Filter semesters based on selected program
+    // Filter semesters based on selected program (for Add/Edit Modal)
     const availableSemesters = semesters
         .filter(s => String(s.programId) === String(formData.programId)) // Ensure string comparison
         .sort((a, b) => a.semesterNo - b.semesterNo);
+
+    // Filter available programs and semesters for the list filters
+    const filterAvailablePrograms = filterDepartmentId 
+        ? programs.filter(p => String(p.departmentId) === String(filterDepartmentId))
+        : programs;
+
+    const filterAvailableSemesters = filterProgramId
+        ? semesters.filter(s => String(s.programId) === String(filterProgramId)).sort((a, b) => a.semesterNo - b.semesterNo)
+        : [];
+
+    const filteredCourses = courses.filter(c => {
+        let match = true;
+        
+        // Find the program for this course to also get the department
+        let pId = c.programId;
+        if (!pId && c.semesterId) {
+            const sem = semesters.find(s => String(s.id) === String(c.semesterId));
+            if (sem) pId = sem.programId;
+        }
+
+        const program = programs.find(p => String(p.id) === String(pId));
+        const depId = program ? program.departmentId : null;
+
+        if (filterDepartmentId && String(depId) !== String(filterDepartmentId)) match = false;
+        if (filterProgramId && String(pId) !== String(filterProgramId)) match = false;
+        if (filterSemesterId && String(c.semesterId) !== String(filterSemesterId)) match = false;
+
+        return match;
+    });
 
     return (
         <div>
@@ -197,10 +234,48 @@ const Courses = () => {
                 <p style={{ color: '#9ca3af', margin: 0 }}>Manage courses for each semester.</p>
             </div>
 
+            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                <Filter size={20} color="#9ca3af" />
+                <select
+                    value={filterDepartmentId}
+                    onChange={(e) => {
+                        setFilterDepartmentId(e.target.value);
+                        setFilterProgramId('');
+                        setFilterSemesterId('');
+                    }}
+                    style={{ padding: '0.5rem', borderRadius: '0.375rem', background: '#1f2937', border: '1px solid #374151', color: 'white', minWidth: '180px', outline: 'none' }}
+                >
+                    <option value="">All Departments</option>
+                    {departments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
+                </select>
+
+                <select
+                    value={filterProgramId}
+                    onChange={(e) => {
+                        setFilterProgramId(e.target.value);
+                        setFilterSemesterId('');
+                    }}
+                    style={{ padding: '0.5rem', borderRadius: '0.375rem', background: '#1f2937', border: '1px solid #374151', color: 'white', minWidth: '180px', outline: 'none' }}
+                >
+                    <option value="">All Programs</option>
+                    {filterAvailablePrograms.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                </select>
+
+                <select
+                    value={filterSemesterId}
+                    onChange={(e) => setFilterSemesterId(e.target.value)}
+                    disabled={!filterProgramId}
+                    style={{ padding: '0.5rem', borderRadius: '0.375rem', background: '#1f2937', border: '1px solid #374151', color: 'white', minWidth: '150px', outline: 'none', opacity: !filterProgramId ? 0.5 : 1 }}
+                >
+                    <option value="">All Semesters</option>
+                    {filterAvailableSemesters.map(s => <option key={s.id} value={s.id}>Semester {s.semesterNo}</option>)}
+                </select>
+            </div>
+
             <DataTable
                 title="Course List"
                 columns={columns}
-                data={courses}
+                data={filteredCourses}
                 onAdd={() => {
                     setEditingId(null);
                     setFormData({ code: '', name: '', credits: 3, programId: '', semesterId: '' });

@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import TrustFlow from '../components/TrustFlow';
 import LoginCard from '../components/LoginCard';
@@ -9,14 +9,16 @@ import './LoginPage.css';
 const LoginPage = () => {
     const { user, role, loading } = useAuth();
     const navigate = useNavigate();
+    const location = useLocation();
 
     // Auto-redirect if logged in
     useEffect(() => {
         if (!loading && user && role) {
-            if (role === 'admin') navigate('/admin-dashboard', { replace: true });
-            else if (role === 'faculty') navigate('/faculty-dashboard', { replace: true });
+            // Retrieve the path the user wanted to access before logging in
+            const from = location.state?.from?.pathname || (role === 'admin' ? '/admin-dashboard' : '/faculty-dashboard');
+            navigate(from, { replace: true });
         }
-    }, [user, role, loading, navigate]);
+    }, [user, role, loading, navigate, location]);
 
     // Show 3D Loader during auth check or redirect phase
     if (loading || (user && role)) {

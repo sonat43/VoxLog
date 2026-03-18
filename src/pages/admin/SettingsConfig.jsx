@@ -106,14 +106,6 @@ const SettingsConfig = () => {
             ]
         },
         {
-            title: "PLATFORM INTELLIGENCE",
-            items: [
-                { id: 'ai', label: 'AI Engine', icon: Cpu },
-                { id: 'reports', label: 'Analytics & Audits', icon: FileText },
-                { id: 'notifications', label: 'Communications', icon: Bell },
-            ]
-        },
-        {
             title: "SYSTEM CORE",
             items: [
                 { id: 'security', label: 'Security Protocols', icon: Shield },
@@ -426,12 +418,28 @@ const renderContent = (tab, settings, update, actions) => {
                             </div>
                         </SettingCard>
                         <SettingCard>
-                            <label className="sc-label sc-mb-4">Lateness Grace Period (Mins)</label>
+                            <label className="sc-label">Lateness Grace Period (Mins)</label>
                             <input
                                 type="number" className="sc-input"
                                 value={settings.attendance.latenessGracePeriodMinutes}
                                 onChange={(e) => update('attendance', 'latenessGracePeriodMinutes', parseInt(e.target.value))}
                             />
+                        </SettingCard>
+                    </div>
+
+                    <div className="sc-grid-2" style={{ marginTop: '16px' }}>
+                        <SettingCard>
+                            <label className="sc-label">Faculty Attendance Window (Grace Period Hours)</label>
+                            <p className="sc-desc-small mb-3">Allow faculty to take attendance for this many hours AFTER the period has officially ended.</p>
+                            <div className="sc-flex-between">
+                                <input
+                                    type="range" min="0" max="24"
+                                    value={settings.attendance.facultyGracePeriodHours || 0}
+                                    onChange={(e) => update('attendance', 'facultyGracePeriodHours', parseInt(e.target.value))}
+                                    className="sc-slider" style={{ width: '70%' }}
+                                />
+                                <span style={{ fontWeight: 'bold', color: 'var(--sc-primary)' }}>{settings.attendance.facultyGracePeriodHours || 0} Hours</span>
+                            </div>
                         </SettingCard>
                     </div>
                 </div>
@@ -566,29 +574,6 @@ const renderContent = (tab, settings, update, actions) => {
                             onChange={(v) => update('system', 'maintenanceMode', v)}
                             impact={{ type: 'danger', text: 'Disruptive' }}
                         />
-                    </SettingCard>
-
-                    <SettingCard>
-                        <div style={{ color: '#ef4444', marginBottom: '16px' }}>
-                            <h3 style={{ fontSize: '1.1rem', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                                <AlertTriangle size={20} /> Danger Zone
-                            </h3>
-                            <p className="sc-desc-small">
-                                Operations here are destructive and cannot be undone.
-                            </p>
-                        </div>
-                        <button
-                            onClick={actions.handleSystemReset}
-                            className="sc-btn-outline"
-                            style={{
-                                borderColor: '#ef4444',
-                                color: '#ef4444',
-                                width: '100%',
-                                justifyContent: 'center'
-                            }}
-                        >
-                            RESET ATTENDANCE & LEAVE DATA
-                        </button>
                     </SettingCard>
                 </div>
             );

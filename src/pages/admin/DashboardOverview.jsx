@@ -10,6 +10,7 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import Toast from '../../components/common/Toast';
 import ComposeEmailModal from '../../components/common/ComposeEmailModal';
 import { motion } from 'framer-motion';
+import { formatTime12Hour } from '../../utils/timeFormat';
 
 const DashboardOverview = () => {
     const { user } = useAuth();
@@ -291,7 +292,7 @@ const DashboardOverview = () => {
                                 <div key={idx} style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '0.75rem', padding: '1rem' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
                                         <strong style={{ color: '#e2e8f0' }}>{sub.courseName}</strong>
-                                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{sub.timeRange}</span>
+                                        <span style={{ fontSize: '0.8rem', color: '#94a3b8' }}>{formatTime12Hour(sub.timeRange)}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.9rem' }}>
                                         <span style={{ color: '#ef4444', textDecoration: 'line-through' }}>{sub.originalFacultyName}</span>

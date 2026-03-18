@@ -6,6 +6,7 @@ import { getSemesters, getDepartments, getPrograms } from '../../services/academ
 import { getTimetable } from '../../services/timetableService';
 import { getSubstitutionsForClass } from '../../services/substitutionService';
 import { useAuth } from '../../context/AuthContext';
+import { formatTime12Hour } from '../../utils/timeFormat';
 
 const FacultyTimetables = () => {
     const navigate = useNavigate();
@@ -302,7 +303,7 @@ const FacultyTimetables = () => {
                                 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: '#3b82f6', fontWeight: 600 }}>
                                         <Clock size={16} />
-                                        {slot.timeRange}
+                                        {formatTime12Hour(slot.timeRange)}
                                     </div>
                                     <div style={{ fontSize: '0.8rem', color: '#94a3b8', marginTop: '0.25rem' }}>
                                         Period {slot.periodIndex}

@@ -15,6 +15,7 @@ import { getTimetable, getFacultyScheduleForDate } from './timetableService';
 import { getFacultyIdsOnLeave, getApprovedLeavesForDate, getAllLeavesForDate } from './leaveService';
 import { fetchAllUsers } from './adminService';
 import { sendEmailNotification } from './emailService';
+import { createNotification } from './notificationService';
 
 // ===========================
 // DATA FETCHING HELPERS
@@ -147,9 +148,8 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
 };
 
 export const createSubstitution = async (data) => {
-    // data: { date, periodIndex, timeRange, classId, courseId, originalFacultyId, substituteFacultyId, requestedBy }
     try {
-        await addDoc(collection(db, "substitutions"), {
+        const docRef = await addDoc(collection(db, "substitutions"), {
             ...data,
             subjectId: data.courseId, // Ensure DB maps UI courseId to subjectId
             status: 'confirmed', // Auto-confirm for now
@@ -157,15 +157,13 @@ export const createSubstitution = async (data) => {
         });
 
         // Create Notification for the Substitute Faculty
-        await addDoc(collection(db, "notifications"), {
-            userId: data.substituteFacultyId,
-            title: "New Substitution Assigned",
-            message: `You have been assigned a substitution for ${data.courseName} (${data.deptName || ''} - ${data.programName || ''} S${data.semesterNo || ''}) on ${data.date} (${data.timeRange}).`,
-            type: "substitution",
-            read: false,
-            createdAt: serverTimestamp(),
-            link: "/faculty/dashboard" // or wherever relevant
-        });
+        await createNotification(
+            data.substituteFacultyId,
+            "Substitution",
+            `You have been assigned a substitution for ${data.courseName} (${data.deptName || ''} - S${data.semesterNo || ''}) on ${data.date} (${data.timeRange}).`,
+            "/faculty/dashboard",
+            docRef.id
+        );
 
         console.log(`[Notification] Sent to ${data.substituteFacultyId}`);
 

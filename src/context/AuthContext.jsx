@@ -63,6 +63,37 @@ export function AuthProvider({ children }) {
         return unsubscribe;
     }, []);
 
+    useEffect(() => {
+        let timeoutId;
+        
+        const handleInactivityLogout = async () => {
+            console.log("Session timed out due to inactivity");
+            alert("Your session has expired due to 10 minutes of inactivity. Please log in again.");
+            await firebaseSignOut(auth);
+        };
+
+        const resetTimer = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            if (user) {
+                // Set timeout for 10 minutes (600,000 ms)
+                timeoutId = setTimeout(handleInactivityLogout, 600000);
+            }
+        };
+
+        const events = ['mousedown', 'mousemove', 'keydown', 'scroll', 'touchstart'];
+
+        // Add listeners only when a user is actively logged in
+        if (user && !loading) {
+            resetTimer();
+            events.forEach(event => window.addEventListener(event, resetTimer, { passive: true }));
+        }
+
+        return () => {
+            if (timeoutId) clearTimeout(timeoutId);
+            events.forEach(event => window.removeEventListener(event, resetTimer, { passive: true }));
+        };
+    }, [user, loading]);
+
     const logout = async () => {
         return firebaseSignOut(auth);
     };

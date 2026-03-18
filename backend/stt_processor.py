@@ -20,14 +20,21 @@ class STTProcessor:
     def __init__(self):
         self.recognizer = sr.Recognizer()
 
-    def process_audio(self, audio_bytes):
+    def process_audio(self, audio_data):
         try:
-            print(f"[DEBUG] Processing audio packet of size: {len(audio_bytes)} bytes")
-            # Web browsers typically record in webm or opus format
-            audio = AudioSegment.from_file(io.BytesIO(audio_bytes))
+            if isinstance(audio_data, str) and os.path.exists(audio_data):
+                print(f"[DEBUG] Processing audio file at: {audio_data}")
+                audio = AudioSegment.from_file(audio_data)
+            else:
+                print(f"[DEBUG] Processing audio packet of size: {len(audio_data)} bytes")
+                audio = AudioSegment.from_file(io.BytesIO(audio_data))
             
             # 1. Normalize Audio (makes it clearer/louder)
             audio = audio.normalize()
+            
+            # Force standard 16kHz Mono 16-bit PCM for Google Speech API 
+            # (WebM Opus gets decoded to 32-bit float which python 'wave' module misreads)
+            audio = audio.set_frame_rate(16000).set_channels(1).set_sample_width(2)
             
             # Ensure pydub successfully decoded the audio
             if len(audio) == 0:

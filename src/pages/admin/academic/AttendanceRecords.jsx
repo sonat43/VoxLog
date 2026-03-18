@@ -3,6 +3,7 @@ import { getDepartments, getSemesters, getStudentsBySemester, getAttendanceRecor
 import { getTimetable } from '../../../services/timetableService';
 import { Calendar, Filter, Users, Check, X, Minus, Save, Download } from 'lucide-react';
 import { downloadCSV } from '../../../utils/csvExport';
+import { formatTime12Hour } from '../../../utils/timeFormat';
 
 const AttendanceRecords = () => {
     const [departments, setDepartments] = useState([]);
@@ -528,7 +529,7 @@ const AttendanceRecords = () => {
                                                 borderBottom: '1px solid #334155', borderLeft: '1px solid #334155'
                                             }}>
                                                 <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>{slot.coursename}</div>
-                                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 'normal' }}>{slot.timeRange}</div>
+                                                <div style={{ fontSize: '0.7rem', color: '#94a3b8', fontWeight: 'normal' }}>{formatTime12Hour(slot.timeRange)}</div>
                                             </th>
                                         ))}
                                     </tr>

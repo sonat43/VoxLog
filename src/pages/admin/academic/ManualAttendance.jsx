@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { getDepartments, getSemesters, getStudentsBySemester, recordAttendance, getAttendanceRecords } from '../../../services/academicService';
 import { getTimetable } from '../../../services/timetableService';
 import { Calendar, Users, Save, CheckCircle, Clock, Database, AlertCircle } from 'lucide-react';
+import { formatTime12Hour } from '../../../utils/timeFormat';
 
 const ManualAttendance = () => {
     const [departments, setDepartments] = useState([]);
@@ -304,7 +305,7 @@ const ManualAttendance = () => {
                             <div>
                                 <button onClick={() => setActiveSlot(null)} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', marginBottom: '0.5rem' }}>← Back to Sessions</button>
                                 <h2 style={{ color: 'white', margin: 0 }}>{activeSlot.coursename}</h2>
-                                <span style={{ color: '#94a3b8' }}>{activeSlot.timeRange}</span>
+                                <span style={{ color: '#94a3b8' }}>{formatTime12Hour(activeSlot.timeRange)}</span>
                             </div>
                             <div style={{ display: 'flex', gap: '1rem' }}>
                                 <button onClick={() => markAll('Present')} style={{ padding: '0.5rem 1rem', background: '#0f766e', color: 'white', border: 'none', borderRadius: '0.5rem', cursor: 'pointer' }}>Mark All Present</button>
@@ -378,7 +379,7 @@ const ManualAttendance = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
                                             <div style={{ background: '#0f172a', padding: '0.75rem', borderRadius: '0.5rem', textAlign: 'center', minWidth: '100px' }}>
                                                 <Clock size={20} color="#38bdf8" style={{ marginBottom: '0.25rem' }} />
-                                                <div style={{ color: 'white', fontWeight: 600, fontSize: '0.9rem' }}>{slot.timeRange}</div>
+                                                <div style={{ color: 'white', fontWeight: 600, fontSize: '0.9rem' }}>{formatTime12Hour(slot.timeRange)}</div>
                                             </div>
                                             <div>
                                                 <h3 style={{ color: 'white', margin: '0 0 0.25rem 0' }}>{slot.coursename}</h3>

@@ -10,7 +10,9 @@ import { collection, getDocs, query, where, orderBy } from 'firebase/firestore';
 export const checkIfHoliday = async (dateString) => {
     try {
         // 1. Check if weekend
-        const dateObj = new Date(dateString);
+        // Parse date string securely in local time to avoid UTC backward-shift bugs
+        const [year, month, day] = dateString.split('-');
+        const dateObj = new Date(year, month - 1, day);
         const dayOfWeek = dateObj.getDay();
         if (dayOfWeek === 0 || dayOfWeek === 6) {
             return { isHoliday: true, reason: 'Weekend' };

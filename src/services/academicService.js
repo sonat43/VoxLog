@@ -13,6 +13,7 @@ import {
     orderBy,
     limit
 } from 'firebase/firestore';
+import { createNotification } from './notificationService';
 
 // ===========================
 // DEPARTMENTS
@@ -110,13 +111,25 @@ export const addSemester = async (programId, semesterNo, studentCount, classTeac
         throw new Error("Semester " + semNo + " already exists for this program.");
     }
 
-    await addDoc(collection(db, "semesters"), {
+    const docRef = await addDoc(collection(db, "semesters"), {
         courseId: programId, // DB expects courseId for the parent degree
         semesterNo: semNo,
         studentCount: Number(studentCount) || 0,
         classTeacherId: classTeacherId || null,
         programId: programId // For UI compatibility if specifically reading programId
     });
+
+    if (classTeacherId) {
+        try {
+            await createNotification(
+                classTeacherId,
+                "Academic",
+                `You have been designated as a Class Teacher for Semester ${semNo}.`,
+                "/faculty/my-class",
+                docRef.id
+            );
+        } catch (err) { console.error('Failed to notify class teacher', err); }
+    }
 };
 
 export const updateSemester = async (semesterId, data) => {
@@ -129,6 +142,18 @@ export const updateSemester = async (semesterId, data) => {
 
     const semRef = doc(db, "semesters", semesterId);
     await updateDoc(semRef, data);
+
+    if (data.classTeacherId) {
+        try {
+            await createNotification(
+                data.classTeacherId,
+                "Academic",
+                `You have been designated as a Class Teacher.`,
+                "/faculty/my-class",
+                semesterId
+            );
+        } catch (err) { console.error('Failed to notify class teacher on update', err); }
+    }
 };
 
 export const getSemesters = async () => {
@@ -226,12 +251,26 @@ export const assignFacultyToCourse = async (facultyId, courseId, academicYear) =
         throw new Error("This course is already assigned to a faculty member for the academic year " + academicYear);
     }
 
-    await addDoc(collection(db, "faculty_subjects"), {
+    const docRef = await addDoc(collection(db, "faculty_subjects"), {
         facultyId,
         subjectId: courseId, // DB expects subjectId
         courseId, // UI compatibility
         academicYear
     });
+
+    try {
+        const courseDoc = await getDoc(doc(db, "subjects", courseId));
+        let courseName = "a new course";
+        if (courseDoc.exists()) courseName = courseDoc.data().name;
+
+        await createNotification(
+            facultyId,
+            "Academic",
+            `You have been assigned to teach ${courseName} for the academic year ${academicYear}.`,
+            "/faculty/courses",
+            docRef.id
+        );
+    } catch (err) { console.error('Failed to notify faculty of course assignment', err); }
 };
 
 export const getFacultyAssignments = async () => {

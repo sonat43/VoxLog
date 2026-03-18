@@ -5,6 +5,7 @@ import { useAuth } from '../../context/AuthContext';
 import { getClassesNeedingSubstitution, getAvailableFaculty, createSubstitution } from '../../services/substitutionService';
 import { getSemesters } from '../../services/academicService';
 import Toast from '../../components/common/Toast';
+import { formatTime12Hour } from '../../utils/timeFormat';
 
 const SubstitutionManagement = ({ isOpen, onClose }) => {
     const { user, role } = useAuth();
@@ -269,7 +270,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                             {item.deptName} • {item.programName} (S{item.semesterNo})
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.875rem' }}>
-                                            <Clock size={14} /> {item.timeRange}
+                                            <Clock size={14} /> {formatTime12Hour(item.timeRange)}
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#94a3b8', fontSize: '0.875rem', marginTop: '4px' }}>
                                             <User size={14} /> {item.originalFacultyName || 'Unknown'}
@@ -302,7 +303,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                 <div style={{ marginBottom: '16px', paddingBottom: '16px', borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
                                     <div style={{ color: '#94a3b8', fontSize: '0.9rem' }}>Finding substitutes for:</div>
                                     <div style={{ color: 'white', fontWeight: 600 }}>{selectedImpactedClass.coursename}</div>
-                                    <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{selectedImpactedClass.timeRange}</div>
+                                    <div style={{ color: '#f59e0b', fontSize: '0.9rem' }}>{formatTime12Hour(selectedImpactedClass.timeRange)}</div>
                                 </div>
 
                                 {checkingAvailability ? (

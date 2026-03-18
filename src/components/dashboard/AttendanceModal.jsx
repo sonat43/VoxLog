@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X, Mic, Camera, CheckCircle, AlertCircle, ArrowRight, ArrowLeft, UserCheck } from 'lucide-react';
 import { saveAttendanceSession } from '../../services/facultyService';
 import { checkSubstitutionForAttendance } from '../../services/substitutionService';
+import { checkIfHoliday } from '../../services/calendarService';
 import { useAuth } from '../../context/AuthContext';
 import SmartAttendance from '../attendance/SmartAttendance';
 import Toast from '../common/Toast';
@@ -19,24 +20,46 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
     const [originalFacultyId, setOriginalFacultyId] = useState(null);
     const [verifying, setVerifying] = useState(false);
     const [toast, setToast] = useState(null);
+    const [holidayInfo, setHolidayInfo] = useState({ isHoliday: false, reason: null });
+    const [checkingHoliday, setCheckingHoliday] = useState(false);
 
     // Reset state on open
     useEffect(() => {
-        if (isOpen) {
-            if (programs && programs.length === 1 && programs[0].status === 'active') {
-                setSelectedProgram(programs[0]);
-                setMode('smart');
-                setStep(3);
-            } else {
-                setStep(1);
-                setSelectedProgram(null);
-                setMode(null);
+        const checkHolidayAndInit = async () => {
+            if (isOpen) {
+                setCheckingHoliday(true);
+                try {
+                    const d = new Date();
+                    const year = d.getFullYear();
+                    const month = String(d.getMonth() + 1).padStart(2, '0');
+                    const day = String(d.getDate()).padStart(2, '0');
+                    const today = `${year}-${month}-${day}`;
+                    const hInfo = await checkIfHoliday(today);
+                    setHolidayInfo(hInfo);
+
+                    if (!hInfo.isHoliday) {
+                        if (programs && programs.length === 1 && programs[0].status === 'active') {
+                            setSelectedProgram(programs[0]);
+                            setMode('smart');
+                            setStep(3);
+                        } else {
+                            setStep(1);
+                            setSelectedProgram(null);
+                            setMode(null);
+                        }
+                    }
+                } catch (e) {
+                    console.error("Holiday fetch error", e);
+                } finally {
+                    setCheckingHoliday(false);
+                    setAiConfidence(0);
+                    setIsSubstitute(false);
+                    setOriginalFacultyId(null);
+                    setVerifying(false);
+                }
             }
-            setAiConfidence(0);
-            setIsSubstitute(false);
-            setOriginalFacultyId(null);
-            setVerifying(false);
-        }
+        };
+        checkHolidayAndInit();
     }, [isOpen, programs]);
 
     // Simulate AI Confidence Calculation
@@ -120,14 +143,15 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                 exit={{ opacity: 0, scale: 0.95 }}
                 style={{
                     background: 'var(--color-surface)',
-                    width: '600px',
+                    width: '800px',
                     maxWidth: '95%',
                     maxHeight: '90vh',
-                    overflowY: 'auto',
+                    display: 'flex',
+                    flexDirection: 'column',
                     borderRadius: '1.5rem',
-                    padding: '1.5rem',
                     boxShadow: 'var(--shadow-lg)',
-                    position: 'relative'
+                    position: 'relative',
+                    overflow: 'hidden'
                 }}
             >
                 {/* Close Button */}
@@ -140,14 +164,15 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                         background: 'transparent',
                         border: 'none',
                         color: 'var(--color-text-muted)',
-                        cursor: 'pointer'
+                        cursor: 'pointer',
+                        zIndex: 10
                     }}
                 >
                     <X size={24} />
                 </button>
 
                 {/* Header */}
-                <div style={{ marginBottom: '2rem', textAlign: 'center' }}>
+                <div style={{ padding: '1.5rem 1.5rem 0', textAlign: 'center', flexShrink: 0, marginBottom: '1.5rem' }}>
                     <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--color-text-main)', marginBottom: '0.5rem' }}>
                         Start Attendance
                     </h2>
@@ -165,60 +190,73 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                 </div>
 
                 {/* Content */}
-                <div style={{ minHeight: '300px' }}>
-                    {step === 1 && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                            <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-secondary)' }}>
-                                Step 1: Select Program & Section
-                            </h3>
-                            {programs.filter(c => c.status === 'active').length === 0 ? (
-                                <div style={{
-                                    padding: '1rem',
-                                    background: 'rgba(239, 68, 68, 0.1)',
-                                    color: 'var(--color-error)',
-                                    borderRadius: '0.5rem',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    gap: '0.5rem'
-                                }}>
-                                    <AlertCircle size={20} />
-                                    No Active Sections Assigned
-                                </div>
-                            ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                    {programs.filter(c => c.status === 'active').map(program => (
-                                        <button
-                                            key={program.id}
-                                            onClick={() => setSelectedProgram(program)}
-                                            style={{
-                                                padding: '1rem',
-                                                border: selectedProgram?.id === program.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
-                                                background: selectedProgram?.id === program.id ? 'var(--color-accent-light)' : 'transparent',
-                                                borderRadius: '0.75rem',
-                                                textAlign: 'left',
-                                                cursor: 'pointer',
-                                                transition: 'all 0.2s'
-                                            }}
-                                        >
-                                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                                    <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{program.code}</span>
-                                                    <span style={{ color: 'var(--color-text-muted)' }}>•</span>
-                                                    <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>
-                                                        Period {program.periodIndex !== undefined ? program.periodIndex + 1 : '?'}
-                                                    </span>
-                                                </div>
-                                                <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{program.name}</div>
-                                                <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', color: 'var(--color-secondary)' }}>
-                                                    Section {program.section}
-                                                </div>
-                                            </div>
-                                        </button>
-                                    ))}
+                <div style={{ flex: 1, overflowY: 'auto', padding: '0 1.5rem', minHeight: '300px' }}>
+                    {checkingHoliday ? (
+                        <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--color-text-muted)' }}>Checking academic calendar...</div>
+                    ) : holidayInfo.isHoliday ? (
+                        <div style={{ textAlign: 'center', padding: '4rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ padding: '1.5rem', background: 'rgba(168, 85, 247, 0.1)', borderRadius: '50%' }}>
+                                <Calendar size={48} color="#c084fc" />
+                            </div>
+                            <h3 style={{ color: '#e9d5ff', fontSize: '1.5rem', margin: 0 }}>Designated Holiday</h3>
+                            <p style={{ color: 'var(--color-text-muted)', fontSize: '1.1rem' }}>{holidayInfo.reason}</p>
+                            <p style={{ color: 'var(--color-text-muted)', background: 'rgba(255,255,255,0.05)', padding: '1rem', borderRadius: '0.5rem', maxWidth: '400px', margin: '1rem auto 0' }}>Attendance tracking operations are suspended for today.</p>
+                        </div>
+                    ) : (
+                        <>
+                            {step === 1 && (
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                    <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--color-secondary)' }}>
+                                        Step 1: Select Program & Section
+                                    </h3>
+                                    {programs.filter(c => c.status === 'active').length === 0 ? (
+                                        <div style={{
+                                            padding: '1rem',
+                                            background: 'rgba(239, 68, 68, 0.1)',
+                                            color: 'var(--color-error)',
+                                            borderRadius: '0.5rem',
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            gap: '0.5rem'
+                                        }}>
+                                            <AlertCircle size={20} />
+                                            No Active Sections Assigned
+                                        </div>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                            {programs.filter(c => c.status === 'active').map(program => (
+                                                <button
+                                                    key={program.id}
+                                                    onClick={() => setSelectedProgram(program)}
+                                                    style={{
+                                                        padding: '1rem',
+                                                        border: selectedProgram?.id === program.id ? '2px solid var(--color-accent)' : '1px solid var(--color-border)',
+                                                        background: selectedProgram?.id === program.id ? 'var(--color-accent-light)' : 'transparent',
+                                                        borderRadius: '0.75rem',
+                                                        textAlign: 'left',
+                                                        cursor: 'pointer',
+                                                        transition: 'all 0.2s'
+                                                    }}
+                                                >
+                                                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                            <span style={{ fontWeight: 600, color: 'var(--color-text-main)' }}>{program.code}</span>
+                                                            <span style={{ color: 'var(--color-text-muted)' }}>•</span>
+                                                            <span style={{ fontWeight: 600, color: 'var(--color-accent)' }}>
+                                                                Period {program.periodIndex !== undefined ? program.periodIndex + 1 : '?'}
+                                                            </span>
+                                                        </div>
+                                                        <div style={{ fontSize: '0.875rem', color: 'var(--color-text-muted)' }}>{program.name}</div>
+                                                        <div style={{ fontSize: '0.75rem', fontWeight: 600, marginTop: '0.25rem', color: 'var(--color-secondary)' }}>
+                                                            {program.semesterName || `Class: ${program.semesterNo || 'N/A'}`} {program.section && program.section !== 'N/A' ? ` • Sec ${program.section}` : ''}
+                                                        </div>
+                                                    </div>
+                                                </button>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             )}
-                        </div>
-                    )}
 
                     {step === 2 && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', textAlign: 'center' }}>
@@ -380,10 +418,12 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                             </div>
                         </div>
                     )}
+                    </>
+                    )}
                 </div>
 
                 {/* Footer Buttons */}
-                <div style={{ marginTop: '2rem', display: 'flex', justifyContent: 'space-between' }}>
+                <div style={{ padding: '1.5rem', borderTop: '1px solid rgba(255,255,255,0.05)', flexShrink: 0, display: 'flex', justifyContent: 'space-between', background: 'var(--color-surface)' }}>
                     <button
                         onClick={handleBack}
                         disabled={step === 1}
@@ -403,7 +443,7 @@ const AttendanceModal = ({ isOpen, onClose, programs }) => {
                     >
                         <ArrowLeft size={16} /> Back
                     </button>
-                    {step < 3 ? (
+                    {holidayInfo.isHoliday || checkingHoliday ? null : step < 3 ? (
                         <button
                             onClick={handleNext}
                             disabled={(step === 1 && !selectedProgram) || (step === 2 && !mode) || verifying}

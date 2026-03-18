@@ -21,7 +21,7 @@ import { getFacultyScheduleForDate } from './timetableService';
 const getBackendUrl = () => {
     // If we're on localhost, assume backend is too. 
     // Otherwise use the current hostname (useful for mobile testing on same network)
-    return 'https://voxlog-backend1.onrender.com';
+    return 'http://localhost:5000';
 };
 
 const BACKEND_URL = getBackendUrl();
@@ -400,6 +400,22 @@ export const saveAttendanceSession = async (sessionData) => {
                 await evaluateFacultyDailyAttendance(sessionData.facultyId, todayStr);
             } catch (evalErr) {
                 console.warn("[WARN] Failed to evaluate daily faculty attendance:", evalErr);
+            }
+        }
+
+        // Notify Original Faculty if this is a substitution
+        if (sessionData.role === 'Substitute' && sessionData.originalFacultyId) {
+            try {
+                const { createNotification } = await import('./notificationService');
+                await createNotification(
+                    sessionData.originalFacultyId,
+                    "Academic",
+                    `Your substitute has recorded attendance for ${sessionData.courseName}.`,
+                    "/faculty/my-attendance",
+                    sessionRef.id
+                );
+            } catch (err) {
+                console.error("Failed to notify original faculty of attendance", err);
             }
         }
 

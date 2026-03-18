@@ -17,6 +17,7 @@ const DEFAULT_SETTINGS = {
         minAttendanceThreshold: 75,
         latenessGracePeriodMinutes: 15,
         consecutiveAbsenceAlert: 3,
+        facultyGracePeriodHours: 0,
     },
     session: {
         maxActiveSessions: 1,

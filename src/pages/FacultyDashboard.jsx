@@ -35,6 +35,7 @@ const FacultyDashboard = () => {
     const [classAverages, setClassAverages] = useState([]);
     const [birthdays, setBirthdays] = useState([]);
     const [gracePeriodHours, setGracePeriodHours] = useState(0);
+    const [restrictToTime, setRestrictToTime] = useState(true);
 
     const [currentTime, setCurrentTime] = useState(new Date());
     useEffect(() => {
@@ -112,11 +113,12 @@ const FacultyDashboard = () => {
                     console.error("Dashboard data error (New Widgets):", error);
                 } 
 
-                // 4. Fetch Global Settings for Grace Period
+                // 4. Fetch Global Settings for Grace Period and Enforcement
                 try {
                     const settings = await fetchSettings();
-                    if (settings?.attendance?.facultyGracePeriodHours) {
-                        setGracePeriodHours(settings.attendance.facultyGracePeriodHours);
+                    if (settings?.attendance) {
+                        setGracePeriodHours(settings.attendance.facultyGracePeriodHours || 0);
+                        setRestrictToTime(settings.attendance.restrictAttendanceToTime !== false);
                     }
                 } catch (error) {
                     console.error("Error fetching settings:", error);
@@ -550,8 +552,8 @@ const FacultyDashboard = () => {
                                         </div>
                                     </div>
                                     {(() => {
-                                        const timeStatus = isCurrentTimeInRange(session.timeRange, gracePeriodHours);
-                                        const isDisabled = session.isAttendanceTaken || holidayInfo.isHoliday || timeStatus.isBefore || timeStatus.isAfter;
+                                        const timeStatus = isCurrentTimeInRange(session.timeRange, gracePeriodHours, restrictToTime);
+                                        const isDisabled = session.isAttendanceTaken || holidayInfo.isHoliday || (!restrictToTime ? false : (timeStatus.isBefore || timeStatus.isAfter));
                                         let buttonText = "Attendance";
                                         let buttonIcon = <Users size={18} />;
 

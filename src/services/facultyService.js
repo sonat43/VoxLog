@@ -19,9 +19,8 @@ import { sendDailyParentReport } from './emailService';
 import { getFacultyScheduleForDate } from './timetableService';
 
 const getBackendUrl = () => {
-    // If we're on localhost, assume backend is too. 
-    // Otherwise use the current hostname (useful for mobile testing on same network)
-    return 'http://localhost:5000';
+    // Hosted Backend URL on Render
+    return 'https://voxlog-backend1.onrender.com';
 };
 
 const BACKEND_URL = getBackendUrl();

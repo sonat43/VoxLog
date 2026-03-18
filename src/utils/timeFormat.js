@@ -24,9 +24,11 @@ export const formatTime12Hour = (timeRange) => {
  * Checks if the current time is before, during, or after a given time range.
  * @param {string} timeRange - The time range in 24h format (e.g., "09:00 - 10:00")
  * @param {number} graceHours - Optional number of hours to extend the end time by (e.g., 4)
+ * @param {boolean} restrictToTime - If false, skips time range validation (returns isInRange: true)
  * @returns {Object} { isBefore: boolean, isInRange: boolean, isAfter: boolean }
  */
-export const isCurrentTimeInRange = (timeRange, graceHours = 0) => {
+export const isCurrentTimeInRange = (timeRange, graceHours = 0, restrictToTime = true) => {
+    if (!restrictToTime) return { isBefore: false, isInRange: true, isAfter: false };
     if (!timeRange || typeof timeRange !== 'string') return { isBefore: false, isInRange: true, isAfter: false };
     
     const parts = timeRange.split(/\s*-\s*/);

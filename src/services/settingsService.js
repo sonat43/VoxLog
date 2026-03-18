@@ -18,6 +18,7 @@ const DEFAULT_SETTINGS = {
         latenessGracePeriodMinutes: 15,
         consecutiveAbsenceAlert: 3,
         facultyGracePeriodHours: 0,
+        restrictAttendanceToTime: true,
     },
     session: {
         maxActiveSessions: 1,

@@ -441,6 +441,16 @@ const renderContent = (tab, settings, update, actions) => {
                                 <span style={{ fontWeight: 'bold', color: 'var(--sc-primary)' }}>{settings.attendance.facultyGracePeriodHours || 0} Hours</span>
                             </div>
                         </SettingCard>
+
+                        <SettingCard>
+                            <ToggleRow
+                                label="Enforce Strict Time Windows"
+                                desc="If disabled, faculty can take attendance for a class any time on its scheduled date."
+                                checked={settings.attendance.restrictAttendanceToTime !== false}
+                                onChange={(v) => update('attendance', 'restrictAttendanceToTime', v)}
+                                impact={{ type: 'info', text: 'Flexibility' }}
+                            />
+                        </SettingCard>
                     </div>
                 </div>
             );

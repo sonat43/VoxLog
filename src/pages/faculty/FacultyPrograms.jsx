@@ -27,6 +27,7 @@ const FacultyPrograms = () => {
     const [showSubstitutionModal, setShowSubstitutionModal] = useState(false);
     const [selectedProgramForAttendance, setSelectedProgramForAttendance] = useState(null);
     const [programStatusMap, setProgramStatusMap] = useState({});
+    const [restrictToTime, setRestrictToTime] = useState(true);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -102,6 +103,16 @@ const FacultyPrograms = () => {
                 });
 
                 setMyManagedClasses(processedManagedClasses);
+                
+                // Fetch Global Settings
+                try {
+                    const settings = await fetchSettings();
+                    if (settings?.attendance) {
+                        setRestrictToTime(settings.attendance.restrictAttendanceToTime !== false);
+                    }
+                } catch (e) {
+                    console.error("Settings fetch error", e);
+                }
 
             } catch (error) {
                 console.error("Error fetching faculty programs:", error);
@@ -174,9 +185,9 @@ const FacultyPrograms = () => {
                     }
                 });
 
-                if (isNow) {
+                if (isNow || !restrictToTime) {
                     activeIds.push(program.courseId);
-                    statusMap[program.courseId] = "Class in Progress";
+                    statusMap[program.courseId] = isNow ? "Class in Progress" : "Flexible Attendance";
                 } else if (nextSlot) {
                     statusMap[program.courseId] = `Next: ${nextSlot}`;
                 } else {

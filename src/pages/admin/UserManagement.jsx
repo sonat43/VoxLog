@@ -67,8 +67,8 @@ const UserManagement = () => {
                     ...u,
                     displayName: formData.displayName,
                     department: formData.department,
-                    role: formData.role === 'admin' ? 'Admin' : 'Faculty',
-                    status: formData.status === 'active' ? 'Active' : 'Disabled'
+                    role: formData.role.toLowerCase() === 'admin' ? 'Admin' : 'Faculty',
+                    status: formData.status.toLowerCase() === 'active' ? 'Active' : 'Disabled'
                 } : u));
 
                 setToast({ message: "User updated successfully.", type: 'success' });
@@ -90,8 +90,8 @@ const UserManagement = () => {
                     displayName: formData.displayName,
                     email: formData.email,
                     department: formData.department,
-                    role: formData.role === 'admin' ? 'Admin' : 'Faculty',
-                    status: formData.status === 'active' ? 'Active' : 'Disabled',
+                    role: formData.role.toLowerCase() === 'admin' ? 'Admin' : 'Faculty',
+                    status: formData.status.toLowerCase() === 'active' ? 'Active' : 'Disabled',
                     assignedClasses: 0,
                     lastLogin: 'Never'
                 };

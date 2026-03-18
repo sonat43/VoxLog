@@ -42,8 +42,8 @@ export function AuthProvider({ children }) {
                             throw new Error("Your account has been disabled by the administrator.");
                         }
 
-                        setRole(userData.role);
-                        setUser({ ...currentUser, ...userData });
+                        setRole(userData.role?.toLowerCase());
+                        setUser({ ...currentUser, ...userData, role: userData.role?.toLowerCase() });
                     } else {
                         // Profile deleted
                         throw new Error("Access Denied. User profile not found.");

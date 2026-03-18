@@ -55,8 +55,8 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && role !== requiredRole) {
-    return <div className="error-message">Access Denied: Isufficient Privileges.</div>;
+  if (requiredRole && role?.toLowerCase() !== requiredRole.toLowerCase()) {
+    return <div className="error-message">Access Denied: Insufficient Privileges.</div>;
   }
 
   return children;

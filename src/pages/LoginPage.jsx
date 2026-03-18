@@ -14,9 +14,27 @@ const LoginPage = () => {
     // Auto-redirect if logged in
     useEffect(() => {
         if (!loading && user && role) {
-            // Retrieve the path the user wanted to access before logging in
-            const from = location.state?.from?.pathname || (role === 'admin' ? '/admin-dashboard' : '/faculty-dashboard');
-            navigate(from, { replace: true });
+            const userRole = role.toLowerCase();
+            const fromPath = location.state?.from?.pathname;
+            
+            // Default paths based on role
+            const defaultPath = userRole === 'admin' ? '/admin-dashboard' : '/faculty/dashboard';
+            
+            let finalPath = defaultPath;
+            
+            // Role-aware redirection: only use 'from' if it matches the current user's role capability
+            if (fromPath) {
+                const isAdminPath = fromPath.startsWith('/admin-dashboard');
+                const isFacultyPath = fromPath.startsWith('/faculty');
+                
+                if (userRole === 'admin' && isAdminPath) {
+                    finalPath = fromPath;
+                } else if (userRole === 'faculty' && isFacultyPath) {
+                    finalPath = fromPath;
+                }
+            }
+
+            navigate(finalPath, { replace: true });
         }
     }, [user, role, loading, navigate, location]);
 

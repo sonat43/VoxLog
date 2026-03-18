@@ -53,8 +53,8 @@ export const provisionUser = async (data) => {
             displayName: data.displayName,
             email: data.email,
             department: data.department,
-            role: data.role,   // 'admin' or 'faculty'
-            status: data.status, // 'active' or 'disabled'
+            role: data.role?.toLowerCase(),   // Normalize to 'admin' or 'faculty'
+            status: data.status?.toLowerCase(), // Normalize to 'active' or 'disabled'
             assignedClasses: 0,
             createdAt: new Date().toISOString(),
             lastLogin: null,
@@ -128,8 +128,8 @@ export const updateUser = async (uid, data) => {
         await updateDoc(userRef, {
             displayName: data.displayName,
             department: data.department,
-            role: data.role,
-            status: data.status,
+            role: data.role?.toLowerCase(),
+            status: data.status?.toLowerCase(),
             // Extended Profile Data
             gender: data.gender || '',
             dateOfBirth: data.dateOfBirth || '',

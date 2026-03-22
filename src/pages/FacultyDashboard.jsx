@@ -8,6 +8,7 @@ import { getMyCourses, getDashboardStats, getTodayAttendanceSessions, getFaculty
 import { getSubstitutionsForFaculty } from '../services/substitutionService';
 import { isFacultyOnLeave } from '../services/leaveService';
 import { useAuth } from '../context/AuthContext';
+import { db } from '../services/firebase';
 import { collection, query, where, getDocs, orderBy, limit, doc, getDoc } from 'firebase/firestore';
 import { checkIfHoliday } from '../services/calendarService';
 import { getSemestersByClassTeacher, getStudentsBySemester } from '../services/academicService';
@@ -235,12 +236,17 @@ const FacultyDashboard = () => {
                 const q = query(
                     collection(db, "notifications"),
                     where("userId", "==", user.uid),
-                    where("read", "==", false),
-                    limit(10)
+                    limit(50)
                 );
                 const snap = await getDocs(q);
-                const notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-                notifs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+                let notifs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+                
+                // Filter and Sort in JS to avoid composite index requirement
+                notifs = notifs
+                    .filter(n => !n.read)
+                    .sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0))
+                    .slice(0, 10);
+                
                 setNotifications(notifs);
             } catch (e) {
                 console.error("Error fetching notifications", e);

@@ -1,13 +1,7 @@
+import { doc, setDoc, getDoc, getDocs, collection, serverTimestamp, query, where } from 'firebase/firestore';
 import { db } from './firebase';
-import {
-    collection,
-    doc,
-    setDoc,
-    getDoc,
-    getDocs,
-    serverTimestamp
-} from 'firebase/firestore';
-import { getFacultyAssignmentsByFaculty } from './academicService';
+import { getFacultyAssignmentsByFaculty, getFacultyAssignments, getSemesters, getPrograms, getDepartments } from './academicService';
+
 
 /**
  * Saves a timetable for a specific semester.
@@ -155,50 +149,39 @@ export const getFacultyScheduleForDate = async (facultyId, dateString) => {
 
         const courseIds = assignments.map(a => a.courseId);
 
-        // 2. Scan all Timetables
-        // Optimization: In production, we should filter by semesterIds linked to courses.
+        // 2. PRE-FETCH Academic Data (Cached)
+        const [semesters, programs, departments] = await Promise.all([
+            getSemesters(),
+            getPrograms(),
+            getDepartments()
+        ]);
+
+        // 3. Scan all Timetables
         const timetablesSnap = await getDocs(collection(db, "timetables"));
 
-        // Robust Date Parsing (Fix for timezone issues)
-        // dateString is "YYYY-MM-DD"
+        // Robust Date Parsing
         const [year, month, day] = dateString.split('-').map(Number);
         const targetDate = new Date(year, month - 1, day);
         const dayName = targetDate.toLocaleDateString('en-US', { weekday: 'long' });
 
-        console.log(`[DEBUG] Checking timetables for day: ${dayName} (${dateString})`);
-
         const mySlots = [];
-        const academicCache = {};
 
         for (const timetableDoc of timetablesSnap.docs) {
             const semesterId = timetableDoc.id;
             const schedule = timetableDoc.data().schedule;
 
             if (schedule && schedule[dayName]) {
-                if (!academicCache[semesterId]) {
-                    const semRef = doc(db, "semesters", semesterId);
-                    const semSnap = await getDoc(semRef);
-                    if (semSnap.exists()) {
-                        const semData = semSnap.data();
-                        const programRef = doc(db, "courses", semData.courseId);
-                        const programSnap = await getDoc(programRef);
-                        const programData = programSnap.exists() ? programSnap.data() : null;
+                const semData = semesters.find(s => s.id === semesterId);
+                if (!semData) continue;
 
-                        let deptName = "Class";
-                        if (programData?.departmentId) {
-                            const deptSnap = await getDoc(doc(db, "departments", programData.departmentId));
-                            if (deptSnap.exists()) deptName = deptSnap.data().name;
-                        }
+                const programData = programs.find(p => p.id === semData.courseId);
+                const deptData = programData ? departments.find(d => d.id === programData.departmentId) : null;
 
-                        academicCache[semesterId] = {
-                            semesterNo: semData.semesterNo,
-                            programName: programData?.name || 'Unknown Program',
-                            deptName: deptName
-                        };
-                    }
-                }
-
-                const metadata = academicCache[semesterId] || {};
+                const metadata = {
+                    semesterNo: semData.semesterNo,
+                    programName: programData?.name || 'Unknown Program',
+                    deptName: deptData?.name || 'Class'
+                };
 
                 schedule[dayName].forEach(slot => {
                     if (courseIds.includes(slot.courseId)) {
@@ -214,12 +197,88 @@ export const getFacultyScheduleForDate = async (facultyId, dateString) => {
                 });
             }
         }
+        
+        // 4. Fetch Substitutions where THIS faculty is the SUBSTITUTE
+        const subsInQuery = query(
+            collection(db, "substitutions"), 
+            where("substituteFacultyId", "==", facultyId),
+            where("date", "==", dateString),
+            where("status", "==", "confirmed")
+        );
+        const subsInSnap = await getDocs(subsInQuery);
+        subsInSnap.docs.forEach(doc => {
+            const sub = doc.data();
+            mySlots.push({
+                periodIndex: sub.periodIndex,
+                timeRange: sub.timeRange,
+                courseId: sub.courseId || sub.subjectId,
+                coursename: sub.courseName,
+                facultyId: sub.originalFacultyId,
+                semesterId: sub.classId,
+                date: dateString,
+                semesterNo: sub.semesterNo,
+                programName: sub.programName,
+                deptName: sub.deptName,
+                isSubstitution: true
+            });
+        });
 
-        console.log(`[DEBUG] Found ${mySlots.length} slots for faculty.`);
-        return mySlots;
+        // 5. Remove Slots where THIS faculty is the ORIGINAL FACULTY and was Substituted OUT
+        const subsOutQuery = query(
+            collection(db, "substitutions"), 
+            where("originalFacultyId", "==", facultyId),
+            where("date", "==", dateString),
+            where("status", "==", "confirmed")
+        );
+        const subsOutSnap = await getDocs(subsOutQuery);
+        const subbedOutPeriods = subsOutSnap.docs.map(doc => doc.data().periodIndex);
+
+        const finalSlots = mySlots.filter(s => {
+            if (s.isSubstitution) return true; // Keep substitutions they are taking over
+            return !subbedOutPeriods.includes(s.periodIndex); // Remove normal classes that were given away
+        });
+
+        // Sort chronologically by period
+        finalSlots.sort((a, b) => a.periodIndex - b.periodIndex);
+
+        console.log(`[DEBUG] Found ${finalSlots.length} slots for faculty.`);
+        return finalSlots;
 
     } catch (error) {
         console.error("Error fetching faculty schedule:", error);
         return [];
+    }
+};
+
+/**
+ * Get specific slot details for manual substitution auto-fill.
+ */
+export const getTimetableSlot = async (semesterId, dateString, periodIndex) => {
+    try {
+        const docSnap = await getDoc(doc(db, 'timetables', semesterId));
+        if (!docSnap.exists()) return null;
+
+        const schedule = docSnap.data().schedule;
+        const [year, month, day] = dateString.split('-').map(Number);
+        const dayName = new Date(year, month - 1, day).toLocaleDateString('en-US', { weekday: 'long' });
+
+        if (schedule && schedule[dayName]) {
+            const slot = schedule[dayName][periodIndex];
+            if (slot && slot.courseId) {
+                // Determine the original faculty assigned to this course
+                const assignments = await getFacultyAssignments();
+                const assignment = assignments.find(a => a.courseId === slot.courseId);
+                
+                return {
+                    courseId: slot.courseId,
+                    coursename: slot.coursename,
+                    originalFacultyId: assignment ? assignment.facultyId : null
+                };
+            }
+        }
+        return null;
+    } catch (error) {
+        console.error("Error fetching timetable slot:", error);
+        return null;
     }
 };

@@ -15,6 +15,16 @@ const firebaseConfig = {
     measurementId: "G-VNCMRL7913"
 };
 
+// ===========================
+// CACHING LAYER
+// ===========================
+let userCache = null;
+
+export const clearUserCache = () => {
+    userCache = null;
+    console.log("[Cache] User cache cleared");
+};
+
 /**
  * Provisions a new user in Firebase Auth and Firestore.
  * Uses a secondary app instance to avoid disrupting the current admin session.
@@ -66,8 +76,8 @@ export const provisionUser = async (data) => {
             qualifications: '', experience: '', linkedInProfile: '', googleScholarProfile: ''
         });
 
-        // 6. Access Control: If status is 'disabled', we might want to do something, 
-        // but Client SDK can't "disable" users. We rely on Firestore 'status' check in LoginCard.jsx.
+        // 6. Clear Cache
+        clearUserCache();
 
         return { success: true, uid: user.uid };
 
@@ -84,9 +94,13 @@ export const provisionUser = async (data) => {
 /**
  * Fetches all users from the Firestore 'users' collection.
  */
-export const fetchAllUsers = async () => {
+export const fetchAllUsers = async (forceRefresh = false) => {
+    if (!forceRefresh && userCache) {
+        console.log("[Cache] Returning cached users");
+        return userCache;
+    }
     try {
-        console.log("Fetching all users and assignments...");
+        console.log("Fetching all users and assignments from Firestore...");
         const [usersSnap, assignmentsSnap] = await Promise.all([
             getDocs(collection(db, "users")),
             getDocs(collection(db, "faculty_subjects"))
@@ -112,6 +126,7 @@ export const fetchAllUsers = async () => {
         });
 
         console.log("Total users fetched:", users.length);
+        userCache = users;
         return users;
     } catch (error) {
         console.error("Error fetching users:", error);
@@ -152,6 +167,7 @@ export const updateUser = async (uid, data) => {
             linkedInProfile: data.linkedInProfile || '',
             googleScholarProfile: data.googleScholarProfile || ''
         });
+        clearUserCache();
         return { success: true };
     } catch (error) {
         console.error("Error updating user:", error);
@@ -166,6 +182,7 @@ export const updateUser = async (uid, data) => {
 export const deleteUser = async (uid) => {
     try {
         await deleteDoc(doc(db, "users", uid));
+        clearUserCache();
         return { success: true };
     } catch (error) {
         console.error("Error deleting user:", error);

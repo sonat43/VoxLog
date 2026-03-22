@@ -47,6 +47,12 @@ const ProtectedRoute = ({ children, requiredRole }) => {
   const { user, role, loading } = useAuth();
   const location = useLocation();
 
+  // Special handling: class_teacher is also a faculty
+  const effectiveRole = role?.toLowerCase();
+  const isAuthorized = requiredRole === 'faculty' 
+    ? (effectiveRole === 'faculty' || effectiveRole === 'class_teacher')
+    : (effectiveRole === requiredRole?.toLowerCase());
+
   if (loading) {
     return <LoadingScreen />;
   }
@@ -55,8 +61,32 @@ const ProtectedRoute = ({ children, requiredRole }) => {
     return <Navigate to="/" state={{ from: location }} replace />;
   }
 
-  if (requiredRole && role?.toLowerCase() !== requiredRole.toLowerCase()) {
-    return <div className="error-message">Access Denied: Insufficient Privileges.</div>;
+  if (requiredRole && !isAuthorized) {
+    // If we have a user but no role yet, wait. (This handles rare race conditions on back navigation)
+    if (!role) return <LoadingScreen message="Syncing Profile..." />;
+    
+    return (
+      <div className="error-message" style={{ 
+        padding: '2rem', 
+        textAlign: 'center', 
+        background: 'rgba(239, 68, 68, 0.1)', 
+        border: '1px solid #ef4444',
+        borderRadius: '0.75rem',
+        margin: '2rem',
+        color: '#f87171'
+      }}>
+        <h2>Access Denied: Insufficient Privileges.</h2>
+        <p>Your current role ({role}) does not have permission to access this page.</p>
+        <button 
+          onClick={() => window.history.back()}
+          style={{ 
+            marginTop: '1rem', padding: '0.5rem 1rem', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' 
+          }}
+        >
+          Go Back
+        </button>
+      </div>
+    );
   }
 
   return children;

@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Calendar, Clock, User, CheckCircle, AlertCircle, X, Search, RefreshCw, AlertTriangle } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getClassesNeedingSubstitution, getAvailableFaculty, createSubstitution } from '../../services/substitutionService';
-import { getSemesters } from '../../services/academicService';
+import { getSemesters, getPrograms } from '../../services/academicService';
+import { getTimetableSlot } from '../../services/timetableService';
 import Toast from '../../components/common/Toast';
 import { formatTime12Hour } from '../../utils/timeFormat';
 
@@ -22,6 +23,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
     const [loading, setLoading] = useState(false);
     const [checkingAvailability, setCheckingAvailability] = useState(false);
     const [toast, setToast] = useState(null);
+    const [isClassTeacher, setIsClassTeacher] = useState(false);
     const isProcessingRef = useRef(false);
 
     // Manual Mode State
@@ -29,14 +31,23 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
     const [semesters, setSemesters] = useState([]);
     const [manualSemesterId, setManualSemesterId] = useState('');
     const [manualPeriod, setManualPeriod] = useState('');
-    const [manualCourseName, setManualCourseName] = useState('');
 
     // Initial Load
     useEffect(() => {
         if (isOpen) {
             loadImpactedClasses();
+            checkClassTeacherStatus();
         }
     }, [isOpen, date]);
+
+    const checkClassTeacherStatus = async () => {
+        if (role === 'admin') return; // Admin has full access anyway
+        try {
+            const sems = await getSemesters();
+            const amITeacher = sems.some(s => s.classTeacherId === user.uid);
+            setIsClassTeacher(amITeacher);
+        } catch (e) { console.error(e); }
+    };
 
     // When a class is selected for substitution, check availability
     useEffect(() => {
@@ -78,7 +89,8 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                 selectedImpactedClass.timeRange,
                 selectedImpactedClass.semesterId // We need semesterId to avoid conflicts
             );
-            setAvailableFaculty(facultyList);
+            // ONLY show Free faculty as requested by user
+            setAvailableFaculty(facultyList.filter(f => f.availabilityStatus === 'Free'));
         } catch (error) {
             console.error(error);
             setToast({ type: 'error', message: 'Error checking faculty availability.' });
@@ -89,40 +101,68 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
 
 
 
-    const loadSemesters = async () => {
+    const loadManualData = async () => {
         try {
-            const sems = await getSemesters();
-            setSemesters(sems);
+            const [sems, allPrograms] = await Promise.all([getSemesters(), getPrograms()]);
+            
+            const mappedSems = sems.map(s => {
+                const prog = allPrograms.find(p => p.id === s.courseId || p.id === s.programId);
+                return { ...s, programName: prog ? prog.name : 'Unknown Program' };
+            });
+
+            if (role === 'admin') {
+                setSemesters(mappedSems);
+            } else {
+                const mySems = mappedSems.filter(s => s.classTeacherId === user.uid);
+                setSemesters(mySems);
+                if (mySems.length > 0) {
+                    setManualSemesterId(mySems[0].id); // Auto-select for Class Teacher
+                }
+            }
         } catch (error) {
             console.error(error);
         }
     };
 
     const handleManualOpen = () => {
-        loadSemesters();
+        loadManualData();
         setShowManualModal(true);
     };
 
     const handleManualSearch = async () => {
         if (!manualSemesterId || manualPeriod === '') return;
 
-        // Create a dummy "impacted class" object to feed into the existing flow
-        // fetching detailed info would be better, but we trust the user for manual entry
         const selectedSem = semesters.find(s => s.id === manualSemesterId);
+        
+        setLoading(true);
+        try {
+            let slotDetails = null;
+            if (manualSemesterId && manualPeriod !== '') {
+                slotDetails = await getTimetableSlot(manualSemesterId, date, manualPeriod);
+            }
 
-        const dummyClass = {
-            semesterId: manualSemesterId,
-            coursename: manualCourseName || `Manual Entry (${selectedSem?.semesterNo || '?'}th Sem)`,
-            periodIndex: Number(manualPeriod),
-            timeRange: "Manual Slot", // We could map period index to time logic if strict
-            originalFacultyId: null, // No specific original faculty
-            originalFacultyName: 'Manual Override',
-            status: 'Pending'
-        };
+            const dummyClass = {
+                semesterId: manualSemesterId,
+                courseId: slotDetails ? slotDetails.courseId : 'unknown',
+                coursename: slotDetails ? slotDetails.coursename : (slotDetails === null ? `No Course Scheduled` : `Unknown Course`),
+                periodIndex: Number(manualPeriod),
+                timeRange: "Manual Slot", 
+                originalFacultyId: slotDetails ? slotDetails.originalFacultyId : null, 
+                originalFacultyName: 'Original Faculty',
+                status: 'Pending',
+                semesterNo: selectedSem?.semesterNo,
+                programName: selectedSem?.programName,
+                deptName: selectedSem?.departmentId || 'Department'
+            };
 
-        setSelectedImpactedClass(dummyClass);
-        setShowManualModal(false);
-        // The useEffect on 'selectedImpactedClass' will trigger checkAvailability automatically
+            setSelectedImpactedClass(dummyClass);
+            setShowManualModal(false);
+        } catch (e) {
+            console.error(e);
+            setToast({ type: 'error', message: 'Failed to access timetable.' });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleConfirm = async () => {
@@ -137,16 +177,17 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                 periodIndex: selectedImpactedClass.periodIndex,
                 timeRange: selectedImpactedClass.timeRange,
                 classId: selectedImpactedClass.semesterId, // Use semesterId as classId
-                courseName: selectedImpactedClass.coursename,
-                originalFacultyId: selectedImpactedClass.originalFacultyId,
+                courseId: selectedImpactedClass.courseId || null,
+                courseName: selectedImpactedClass.coursename || 'Unknown Course',
+                originalFacultyId: selectedImpactedClass.originalFacultyId || null,
                 substituteFacultyId: selectedSubstitute.uid || selectedSubstitute.id,
-                substituteName: selectedSubstitute.displayName,
+                substituteName: selectedSubstitute.displayName || 'Substitute',
                 requestedBy: user.uid,
                 status: 'confirmed',
                 // Pass academic metadata
-                semesterNo: selectedImpactedClass.semesterNo,
-                programName: selectedImpactedClass.programName,
-                deptName: selectedImpactedClass.deptName
+                semesterNo: selectedImpactedClass.semesterNo || null,
+                programName: selectedImpactedClass.programName || null,
+                deptName: selectedImpactedClass.deptName || null
             });
 
             setToast({ type: 'success', message: 'Substitution confirmed & Substitute notified!' });
@@ -207,12 +248,14 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                         />
                     </div>
                     <div style={{ alignSelf: 'flex-end', display: 'flex', gap: '8px' }}>
-                        <button
-                            onClick={() => alert("Manual Override Feature Coming Soon! For now, please use the automatic list.")}
-                            style={{ padding: '12px', borderRadius: '8px', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
-                        >
-                            + Manual Entry
-                        </button>
+                        {(role === 'admin' || isClassTeacher) && (
+                            <button
+                                onClick={handleManualOpen}
+                                style={{ padding: '12px', borderRadius: '8px', background: '#3b82f6', color: 'white', border: 'none', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}
+                            >
+                                + Manual Entry
+                            </button>
+                        )}
                         <button
                             onClick={loadImpactedClasses}
                             style={{ padding: '12px', borderRadius: '8px', background: '#334155', color: 'white', border: 'none', cursor: 'pointer' }}
@@ -310,7 +353,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                     <div style={{ color: '#94a3b8', textAlign: 'center', padding: '20px' }}>Scanning faculty availability...</div>
                                 ) : availableFaculty.length === 0 ? (
                                     <div style={{ padding: '16px', background: 'rgba(239, 68, 68, 0.1)', color: '#f87171', borderRadius: '8px' }}>
-                                        No faculty found.
+                                        No free faculty available at this time.
                                     </div>
                                 ) : (
                                     <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -414,16 +457,22 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                 <h3 style={{ color: 'white', marginTop: 0 }}>Manual Substitution Entry</h3>
                                 <div style={{ marginBottom: '16px' }}>
                                     <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px' }}>Select Semester (Class)</label>
-                                    <select
-                                        value={manualSemesterId}
-                                        onChange={(e) => setManualSemesterId(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#1e293b', border: '1px solid #475569', color: 'white' }}
-                                    >
-                                        <option value="">-- Select Class --</option>
-                                        {semesters.map(sem => (
-                                            <option key={sem.id} value={sem.id}>Semester {sem.semesterNo} ({sem.programName || 'Unknown Program'})</option>
-                                        ))}
-                                    </select>
+                                    {role === 'admin' || semesters.length > 1 ? (
+                                        <select
+                                            value={manualSemesterId}
+                                            onChange={(e) => setManualSemesterId(e.target.value)}
+                                            style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#1e293b', border: '1px solid #475569', color: 'white' }}
+                                        >
+                                            <option value="">-- Select Class --</option>
+                                            {semesters.map(sem => (
+                                                <option key={sem.id} value={sem.id}>Semester {sem.semesterNo} ({sem.programName || 'Unknown Program'})</option>
+                                            ))}
+                                        </select>
+                                    ) : (
+                                        <div style={{ width: '100%', padding: '10px', borderRadius: '6px', background: 'rgba(255,255,255,0.05)', border: '1px solid #475569', color: 'white' }}>
+                                            {semesters[0] ? `Semester ${semesters[0].semesterNo} (${semesters[0].programName || 'Unknown Program'})` : 'No Class Assigned'}
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div style={{ marginBottom: '16px' }}>
@@ -444,18 +493,7 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                     </select>
                                 </div>
 
-                                <div style={{ marginBottom: '24px' }}>
-                                    <label style={{ display: 'block', color: '#94a3b8', fontSize: '0.9rem', marginBottom: '8px' }}>Select Course (Optional Metadata)</label>
-                                    <input
-                                        type="text"
-                                        placeholder="e.g. Data Structures (Leave blank if unknown)"
-                                        value={manualCourseName}
-                                        onChange={(e) => setManualCourseName(e.target.value)}
-                                        style={{ width: '100%', padding: '10px', borderRadius: '6px', background: '#1e293b', border: '1px solid #475569', color: 'white' }}
-                                    />
-                                </div>
-
-                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '32px' }}>
                                     <button
                                         onClick={() => setShowManualModal(false)}
                                         style={{ padding: '8px 16px', borderRadius: '6px', background: 'transparent', color: '#94a3b8', border: '1px solid #475569', cursor: 'pointer' }}
@@ -464,14 +502,14 @@ const SubstitutionManagement = ({ isOpen, onClose }) => {
                                     </button>
                                     <button
                                         onClick={handleManualSearch}
-                                        disabled={!manualSemesterId || manualPeriod === ''}
+                                        disabled={!manualSemesterId || manualPeriod === '' || loading}
                                         style={{
                                             padding: '8px 20px', borderRadius: '6px', border: 'none',
-                                            background: (!manualSemesterId || manualPeriod === '') ? '#334155' : '#3b82f6',
-                                            color: 'white', cursor: (!manualSemesterId || manualPeriod === '') ? 'not-allowed' : 'pointer'
+                                            background: (!manualSemesterId || manualPeriod === '' || loading) ? '#334155' : '#3b82f6',
+                                            color: 'white', cursor: (!manualSemesterId || manualPeriod === '' || loading) ? 'not-allowed' : 'pointer'
                                         }}
                                     >
-                                        Find Substitutes
+                                        {loading ? 'Processing...' : 'Find Substitutes'}
                                     </button>
                                 </div>
                             </motion.div>

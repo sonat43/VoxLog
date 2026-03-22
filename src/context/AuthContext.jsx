@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState } from 'react';
 import { auth, db } from '../services/firebase';
 import { onAuthStateChanged, signOut as firebaseSignOut } from 'firebase/auth';
-import { doc, getDoc } from 'firebase/firestore';
+import { doc, onSnapshot } from 'firebase/firestore';
 import LoadingScreen from '../components/LoadingScreen';
 
 const AuthContext = createContext();
@@ -23,44 +23,83 @@ export function AuthProvider({ children }) {
     const loginDemo = async () => { };
 
     useEffect(() => {
-        const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
+        let unsubscribeSnapshot = null;
+
+        const unsubscribeAuth = onAuthStateChanged(auth, async (currentUser) => {
+            // 1. Immediate Clean-up of previous snapshot
+            if (typeof unsubscribeSnapshot === 'function') {
+                try {
+                    unsubscribeSnapshot();
+                } catch (e) {
+                    console.warn("Error unsubscribing from snapshot:", e);
+                }
+                unsubscribeSnapshot = null;
+            }
+
             if (!currentUser) {
                 setUser(null);
                 setRole(null);
+                setLoading(false);
+                setError('');
             } else {
                 setLoading(true);
                 setError('');
+                
                 try {
                     const userDocRef = doc(db, 'users', currentUser.uid);
-                    const userDoc = await getDoc(userDocRef);
+                    
+                    // Set up real-time listener
+                    unsubscribeSnapshot = onSnapshot(userDocRef, (snapshot) => {
+                        if (snapshot.exists()) {
+                            const userData = snapshot.data();
 
-                    if (userDoc.exists()) {
-                        const userData = userDoc.data();
-
-                        // Check if account is active
-                        if (userData.status === 'disabled' || userData.status === 'Disabled') {
-                            throw new Error("Your account has been disabled by the administrator.");
+                            if (userData.status === 'disabled' || userData.status === 'Disabled') {
+                                setError("Your account has been disabled by the administrator.");
+                                // Use setTimeout to avoid synchronous auth state changes within firestore callback
+                                setTimeout(() => {
+                                    firebaseSignOut(auth).catch(console.error);
+                                }, 0);
+                                setUser(null);
+                                setRole(null);
+                            } else {
+                                setRole(userData.role?.toLowerCase());
+                                setUser({ ...currentUser, ...userData, role: userData.role?.toLowerCase() });
+                                setError('');
+                            }
+                        } else {
+                            setError("Access Denied. User profile not found.");
+                            setTimeout(() => {
+                                firebaseSignOut(auth).catch(console.error);
+                            }, 0);
+                            setUser(null);
+                            setRole(null);
                         }
-
-                        setRole(userData.role?.toLowerCase());
-                        setUser({ ...currentUser, ...userData, role: userData.role?.toLowerCase() });
-                    } else {
-                        // Profile deleted
-                        throw new Error("Access Denied. User profile not found.");
-                    }
+                        setLoading(false);
+                    }, (err) => {
+                        console.error("Auth Snapshot Error:", err);
+                        // If it's a permission error, it might be because we just signed out
+                        if (err.code !== 'permission-denied') {
+                          setError("Failed to sync profile data: " + err.message);
+                        }
+                        setLoading(false);
+                    });
                 } catch (err) {
-                    console.error("Auth Validation Error:", err);
-                    await firebaseSignOut(auth); // Force Logout
-                    setUser(null);
-                    setRole(null);
-                    setError(err.message);
+                    console.error("Error establishing snapshot listener:", err);
+                    setLoading(false);
                 }
             }
-            // Always turn off loading after check
-            setLoading(false);
         });
 
-        return unsubscribe;
+        return () => {
+            unsubscribeAuth();
+            if (typeof unsubscribeSnapshot === 'function') {
+                try {
+                    unsubscribeSnapshot();
+                } catch (e) {
+                    // Ignore already unsubscribed errors
+                }
+            }
+        };
     }, []);
 
     useEffect(() => {

@@ -21,18 +21,20 @@ const NotificationCenter = () => {
         const q = query(
             collection(db, "notifications"),
             where("userId", "==", user.uid),
-            orderBy("createdAt", "desc"),
-            limit(50)
+            limit(100)
         );
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
-            const notifs = [];
-            let unread = 0;
+            let notifs = [];
             snapshot.forEach((doc) => {
-                const data = doc.data();
-                notifs.push({ id: doc.id, ...data });
-                if (!data.read) unread++;
+                notifs.push({ id: doc.id, ...doc.data() });
             });
+
+            // Sort in memory to avoid composite index requirement
+            notifs.sort((a, b) => (b.createdAt?.seconds || 0) - (a.createdAt?.seconds || 0));
+            notifs = notifs.slice(0, 50);
+
+            let unread = notifs.filter(n => !n.read).length;
             setNotifications(notifs);
             setUnreadCount(unread);
         }, (error) => {

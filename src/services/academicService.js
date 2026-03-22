@@ -16,6 +16,27 @@ import {
 import { createNotification } from './notificationService';
 
 // ===========================
+// CACHING LAYER (Simple Singleton Cache)
+// ===========================
+const cache = {
+    departments: null,
+    programs: null,
+    semesters: null,
+    subjects: null,
+    lastUpdate: {}
+};
+
+export const clearAcademicCache = (key = null) => {
+    if (key) {
+        cache[key] = null;
+        console.log(`[Cache] Cleared: ${key}`);
+    } else {
+        Object.keys(cache).forEach(k => cache[k] = null);
+        console.log(`[Cache] Cleared All`);
+    }
+};
+
+// ===========================
 // DEPARTMENTS
 // ===========================
 
@@ -32,11 +53,18 @@ export const addDepartment = async (name) => {
         status: 'active',
         createdAt: serverTimestamp()
     });
+    clearAcademicCache('departments');
 };
 
-export const getDepartments = async () => {
+export const getDepartments = async (forceRefresh = false) => {
+    if (!forceRefresh && cache.departments) {
+        console.log("[Cache] Returning cached departments");
+        return cache.departments;
+    }
     const querySnapshot = await getDocs(collection(db, "departments"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    cache.departments = data;
+    return data;
 };
 
 export const updateDepartmentStatus = async (departmentId, newStatus) => {
@@ -47,6 +75,7 @@ export const updateDepartmentStatus = async (departmentId, newStatus) => {
 export const updateDepartment = async (departmentId, data) => {
     const departmentRef = doc(db, "departments", departmentId);
     await updateDoc(departmentRef, data);
+    clearAcademicCache('departments');
 };
 
 export const deleteDepartment = async (departmentId) => {
@@ -58,6 +87,7 @@ export const deleteDepartment = async (departmentId) => {
     }
 
     await deleteDoc(doc(db, "departments", departmentId));
+    clearAcademicCache('departments');
 };
 
 // ===========================
@@ -70,17 +100,25 @@ export const addProgram = async (name, departmentId, duration) => {
         departmentId,
         duration: Number(duration)
     });
+    clearAcademicCache('programs');
 };
 
 export const updateProgram = async (programId, data) => {
     if (data.duration) data.duration = Number(data.duration);
     const programRef = doc(db, "courses", programId);
     await updateDoc(programRef, data);
+    clearAcademicCache('programs');
 };
 
-export const getPrograms = async () => {
+export const getPrograms = async (forceRefresh = false) => {
+    if (!forceRefresh && cache.programs) {
+        console.log("[Cache] Returning cached programs");
+        return cache.programs;
+    }
     const querySnapshot = await getDocs(collection(db, "courses"));
-    return querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    const data = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    cache.programs = data;
+    return data;
 };
 
 export const deleteProgram = async (programId) => {
@@ -92,6 +130,7 @@ export const deleteProgram = async (programId) => {
     }
 
     await deleteDoc(doc(db, "courses", programId));
+    clearAcademicCache('programs');
 };
 
 // ===========================
@@ -118,6 +157,7 @@ export const addSemester = async (programId, semesterNo, studentCount, classTeac
         classTeacherId: classTeacherId || null,
         programId: programId // For UI compatibility if specifically reading programId
     });
+    clearAcademicCache('semesters');
 
     if (classTeacherId) {
         try {
@@ -142,6 +182,7 @@ export const updateSemester = async (semesterId, data) => {
 
     const semRef = doc(db, "semesters", semesterId);
     await updateDoc(semRef, data);
+    clearAcademicCache('semesters');
 
     if (data.classTeacherId) {
         try {
@@ -156,16 +197,22 @@ export const updateSemester = async (semesterId, data) => {
     }
 };
 
-export const getSemesters = async () => {
+export const getSemesters = async (forceRefresh = false) => {
+    if (!forceRefresh && cache.semesters) {
+        console.log("[Cache] Returning cached semesters");
+        return cache.semesters;
+    }
     const querySnapshot = await getDocs(collection(db, "semesters"));
-    return querySnapshot.docs.map(doc => {
-        const data = doc.data();
+    const data = querySnapshot.docs.map(doc => {
+        const d = doc.data();
         return {
             id: doc.id,
-            ...data,
-            programId: data.programId || data.courseId // Map DB courseId to UI programId 
+            ...d,
+            programId: d.programId || d.courseId // Map DB courseId to UI programId 
         };
     });
+    cache.semesters = data;
+    return data;
 };
 
 export const deleteSemester = async (semesterId) => {
@@ -177,6 +224,7 @@ export const deleteSemester = async (semesterId) => {
     }
 
     await deleteDoc(doc(db, "semesters", semesterId));
+    clearAcademicCache('semesters');
 };
 
 // ===========================
@@ -199,6 +247,7 @@ export const addCourse = async (code, name, credits, semesterId, programId) => {
         courseId: programId, // DB subjects use courseId to point to the parent Degree (Program)
         programId // For UI compatibility backward support
     });
+    clearAcademicCache('subjects');
 };
 
 export const updateCourse = async (courseId, data) => { // "courseId" parameter here is actually a Subject ID for the DB
@@ -210,18 +259,25 @@ export const updateCourse = async (courseId, data) => { // "courseId" parameter 
 
     const subRef = doc(db, "subjects", courseId);
     await updateDoc(subRef, data);
+    clearAcademicCache('subjects');
 };
 
-export const getCourses = async () => {
+export const getCourses = async (forceRefresh = false) => {
+    if (!forceRefresh && cache.subjects) {
+        console.log("[Cache] Returning cached subjects");
+        return cache.subjects;
+    }
     const querySnapshot = await getDocs(collection(db, "subjects"));
-    return querySnapshot.docs.map(doc => {
-        const data = doc.data();
+    const data = querySnapshot.docs.map(doc => {
+        const d = doc.data();
         return {
             id: doc.id,
-            ...data,
-            programId: data.programId || data.courseId // Fallback to courseId for legacy records
+            ...d,
+            programId: d.programId || d.courseId // Fallback to courseId for legacy records
         };
     });
+    cache.subjects = data;
+    return data;
 };
 
 export const deleteCourse = async (courseId) => { // "courseId" parameter is a DB Subject ID
@@ -233,6 +289,7 @@ export const deleteCourse = async (courseId) => { // "courseId" parameter is a D
     }
 
     await deleteDoc(doc(db, "subjects", courseId));
+    clearAcademicCache('subjects');
 };
 
 // ===========================

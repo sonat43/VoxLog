@@ -126,14 +126,7 @@ const UserManagement = () => {
     const handleMenuAction = async (action, user) => {
         setOpenMenuId(null);
         if (action === 'edit') {
-            setEditingUser({
-                id: user.id,
-                displayName: user.displayName,
-                email: user.email,
-                department: user.department,
-                role: user.role.toLowerCase(),
-                status: user.status.toLowerCase()
-            });
+            setEditingUser({ ...user });
             setIsModalOpen(true);
         } else if (action === 'disable') {
             const newStatus = user.status === 'Active' ? 'Disabled' : 'Active';
@@ -146,14 +139,7 @@ const UserManagement = () => {
                 setToast({ message: "Failed to update status", type: 'error' });
             }
         } else if (action === 'role') {
-            setEditingUser({
-                id: user.id,
-                displayName: user.displayName,
-                email: user.email,
-                department: user.department,
-                role: user.role.toLowerCase(),
-                status: user.status.toLowerCase()
-            });
+            setEditingUser({ ...user });
             setIsModalOpen(true);
         } else if (action === 'reset') {
             setToast({ message: `Password reset link sent to ${user.email}`, type: 'success' });

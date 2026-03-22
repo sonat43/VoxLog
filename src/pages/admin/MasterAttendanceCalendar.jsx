@@ -82,34 +82,7 @@ const MasterAttendanceCalendar = () => {
                 </div>
 
                 <div style={{ display: 'flex', gap: '12px' }}>
-                    {/* Dev/Test Button */}
-                    <button
-                        onClick={async () => {
-                            try {
-                                const todayStr = new Date().toISOString().split('T')[0];
-                                await addDoc(collection(db, "academic_events"), {
-                                    date: todayStr,
-                                    title: "Mock Holiday (Generated)",
-                                    type: "Holiday"
-                                });
-                                loadReport();
-                                alert("Generated holiday for today! Refreshing.");
-                            } catch (e) {
-                                console.log("Failed to add mock event:", e);
-                            }
-                        }}
-                        style={{
-                            padding: '10px 16px',
-                            background: '#a855f7',
-                            color: 'white',
-                            border: 'none',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                            fontWeight: 600
-                        }}
-                    >
-                        + Gen Mock Fest
-                    </button>
+
                     <div style={{ display: 'flex', alignItems: 'center', background: '#1e293b', borderRadius: '12px', padding: '4px' }}>
                         <button onClick={handlePrevWeek} style={{ padding: '8px', background: 'transparent', border: 'none', color: 'white', cursor: 'pointer' }}>
                             <ChevronLeft size={20} />

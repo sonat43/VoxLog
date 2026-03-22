@@ -8,10 +8,11 @@ import {
     serverTimestamp,
     orderBy,
     doc,
+    updateDoc,
     getDoc
 } from 'firebase/firestore';
-import { getFacultyAssignments, getSemesters } from './academicService';
-import { getTimetable, getFacultyScheduleForDate } from './timetableService';
+import { getFacultyAssignments, getSemesters, getPrograms, getDepartments } from './academicService';
+import { getFacultyScheduleForDate } from './timetableService';
 import { getFacultyIdsOnLeave, getApprovedLeavesForDate, getAllLeavesForDate } from './leaveService';
 import { fetchAllUsers } from './adminService';
 import { sendEmailNotification } from './emailService';
@@ -22,11 +23,8 @@ import { createNotification } from './notificationService';
 // ===========================
 
 const getAllFaculty = async () => {
-    // Reusing fetchAllUsers from adminService which gets everyone
-    // Ideally we filter for role='faculty' but the UI might not set roles strictly yet
-    // For safety, we'll filter client side if needed, or assume assignment check dictates faculty hood
     const users = await fetchAllUsers();
-    return users.filter(u => u.role === 'faculty' || u.role === 'admin'); // Admins can substitute too
+    return users.filter(u => u.role === 'faculty' || u.role === 'class_teacher');
 };
 
 // ===========================
@@ -34,94 +32,76 @@ const getAllFaculty = async () => {
 // ===========================
 
 /**
- * Get Available Faculty for a specific substitution slot.
- * RULES:
- * 1. Not in weekly_timetable for that slot.
- * 2. Not already a substitute for that slot.
- * 3. Not on Approved Leave for that date.
- */
-/**
  * Get All Faculty with Availability Status for a specific slot.
  * Returns: Array of { ...faculty, availabilityStatus: 'Free' | 'Busy' | 'On Leave', busyReason: string }
  */
-export const getAvailableFaculty = async (dateString, periodIndex, timeRange, semesterIdToAvoid) => {
+export const getAvailableFaculty = async (dateString, periodIndex, timeRange, semesterIdToAvoid = null) => {
     try {
         console.log(`Checking availability for ${dateString}, Period ${periodIndex}`);
 
-        // 1. Get All Faculty
-        const allFaculty = await getAllFaculty();
+        // 1. BATCH FETCH All Required Data
+        const [allFaculty, leavesOnDate, allTimetablesSnap, subsSnap, semesters, programs, departments, assignments] = await Promise.all([
+            getAllFaculty(),
+            getAllLeavesForDate(dateString),
+            getDocs(collection(db, "timetables")),
+            getDocs(query(collection(db, "substitutions"), where("date", "==", dateString), where("periodIndex", "==", periodIndex))),
+            getSemesters(),
+            getPrograms(),
+            getDepartments(),
+            getFacultyAssignments()
+        ]);
 
-        // Map to store status: uid -> { status, reason }
         const facultyStatusMap = {};
-
-        // Initialize everyone as Free
         allFaculty.forEach(f => {
             facultyStatusMap[f.uid || f.id] = { status: 'Free', reason: '' };
         });
 
-        // 2. Identify Faculty on LEAVE
-        const facultyOnLeave = await getFacultyIdsOnLeave(dateString);
-        facultyOnLeave.forEach(id => {
-            if (facultyStatusMap[id]) {
-                facultyStatusMap[id] = { status: 'On Leave', reason: 'Approved Leave' };
+        const courseFacultyMap = {};
+        if (assignments) {
+            assignments.forEach(a => courseFacultyMap[a.courseId] = a.facultyId);
+        }
+
+        // 2. Identify Faculty on LEAVE (Approved or Pending)
+        leavesOnDate.forEach(l => {
+            if (facultyStatusMap[l.facultyId]) {
+                facultyStatusMap[l.facultyId] = { status: 'On Leave', reason: `${l.type} (${l.status})` };
             }
         });
 
         // 3. Identify Faculty Busy in TIMETABLE
-        const dateObj = new Date(dateString);
-        const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-        const dayName = days[dateObj.getDay()];
-
-        // Optimization: Fetch all assignments once to map Course -> Faculty
-        const allAssignments = await getFacultyAssignments();
-        const courseFacultyMap = {};
-        allAssignments.forEach(a => courseFacultyMap[a.courseId] = a.facultyId);
-
-        // Fetch all semesters to check timetables
-        const semesters = await getSemesters();
-
-        await Promise.all(semesters.map(async (sem) => {
-            const schedule = await getTimetable(sem.id);
-            if (!schedule || !schedule[dayName]) return;
-
-            const slot = schedule[dayName].find(s => s.periodIndex === periodIndex);
-
-            // Check if this slot has a course AND a faculty assigned
-            if (slot && slot.courseId) {
-                const facultyId = courseFacultyMap[slot.courseId];
-
-                // If a faculty is found, MARK THEM AS BUSY
-                // But only if they aren't already marked as 'On Leave' (Leave takes precedence logic? Or maybe Leave explains why they need a sub?)
-                // Actually, if they are on leave, they are 'On Leave'. If they are in class, they are 'Busy'.
-
-                if (facultyId && facultyStatusMap[facultyId]) {
-                    if (facultyStatusMap[facultyId].status !== 'On Leave') {
-                        facultyStatusMap[facultyId] = {
-                            status: 'Busy',
-                            reason: `Class: ${slot.coursename} (${sem.semesterNo === 1 ? '1st' : sem.semesterNo + 'th'} Sem)`
+        const dayName = new Date(dateString).toLocaleDateString('en-US', { weekday: 'long' });
+        
+        allTimetablesSnap.forEach(tDoc => {
+            const semId = tDoc.id;
+            const schedule = tDoc.data().schedule;
+            if (schedule && schedule[dayName]) {
+                const slot = schedule[dayName][periodIndex];
+                if (slot && slot.courseId) {
+                    const facultyId = courseFacultyMap[slot.courseId];
+                    if (facultyId && facultyStatusMap[facultyId] && facultyStatusMap[facultyId].status === 'Free') {
+                        const semData = semesters.find(s => s.id === semId);
+                        const progData = semData ? programs.find(p => p.id === semData.courseId) : null;
+                        const deptData = progData ? departments.find(d => d.id === progData.departmentId) : null;
+                        
+                        const loc = `${deptData?.name || ''} ${progData?.name || ''} S${semData?.semesterNo || ''}`.trim();
+                        facultyStatusMap[facultyId] = { 
+                            status: 'Busy', 
+                            reason: `Teaching ${slot.coursename} in ${loc || 'another class'}` 
                         };
                     }
                 }
             }
-        }));
+        });
 
         // 4. Identify Faculty already SUBSTITUTING
-        const subQuery = query(
-            collection(db, "substitutions"),
-            where("date", "==", dateString),
-            where("periodIndex", "==", periodIndex)
-        );
-        const subSnap = await getDocs(subQuery);
-        subSnap.docs.forEach(doc => {
+        subsSnap.docs.forEach(doc => {
             const data = doc.data();
-            if (data.substituteFacultyId && facultyStatusMap[data.substituteFacultyId]) {
-                // Convert to Busy
-                if (facultyStatusMap[data.substituteFacultyId].status !== 'On Leave') {
-                    facultyStatusMap[data.substituteFacultyId] = {
-                        status: 'Busy',
-                        reason: `Substituting for ${data.courseName || 'another class'}`
-                    };
-                }
+            const subId = data.substituteFacultyId;
+            if (subId && facultyStatusMap[subId] && facultyStatusMap[subId].status === 'Free') {
+                facultyStatusMap[subId] = {
+                    status: 'Busy',
+                    reason: `Already substituting for ${data.courseName || 'another class'}`
+                };
             }
         });
 
@@ -135,7 +115,6 @@ export const getAvailableFaculty = async (dateString, periodIndex, timeRange, se
             };
         });
 
-        // Sort: Free first, then Busy, then Leave
         return result.sort((a, b) => {
             const score = { 'Free': 0, 'Busy': 1, 'On Leave': 2 };
             return score[a.availabilityStatus] - score[b.availabilityStatus];
@@ -151,23 +130,21 @@ export const createSubstitution = async (data) => {
     try {
         const docRef = await addDoc(collection(db, "substitutions"), {
             ...data,
-            subjectId: data.courseId, // Ensure DB maps UI courseId to subjectId
-            status: 'confirmed', // Auto-confirm for now
+            subjectId: data.courseId,
+            status: 'confirmed',
             createdAt: serverTimestamp()
         });
 
-        // Create Notification for the Substitute Faculty
+        // In-App Notification
         await createNotification(
             data.substituteFacultyId,
             "Substitution",
-            `You have been assigned a substitution for ${data.courseName} (${data.deptName || ''} - S${data.semesterNo || ''}) on ${data.date} (${data.timeRange}).`,
+            `Urgent: Assigned substitution for ${data.courseName} on ${data.date} (${data.timeRange}).`,
             "/faculty/dashboard",
             docRef.id
         );
 
-        console.log(`[Notification] Sent to ${data.substituteFacultyId}`);
-
-        // 3. Send Email Notification
+        // Email Notification
         try {
             const userDoc = await getDoc(doc(db, "users", data.substituteFacultyId));
             if (userDoc.exists()) {
@@ -175,73 +152,26 @@ export const createSubstitution = async (data) => {
                 if (userData.email) {
                     const htmlEmail = `
                         <div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; border: 1px solid #e2e8f0; border-radius: 8px; overflow: hidden; background-color: #ffffff;">
-                            <!-- Header -->
-                            <div style="background-color: #0f172a; padding: 20px; text-align: center;">
-                                <h2 style="color: #ffffff; margin: 0; font-size: 24px;">New Substitution Assignment</h2>
-                                <p style="color: #94a3b8; margin: 5px 0 0 0; font-size: 14px;">Academic Management System</p>
+                            <div style="background-color: #0f172a; padding: 20px; text-align: center; color: white;">
+                                <h2 style="margin:0;">Substitution Assignment</h2>
                             </div>
-                            
-                            <!-- Body -->
                             <div style="padding: 30px; color: #334155;">
-                                <p style="font-size: 16px; margin-top: 0;">Dear <strong>${userData.displayName || 'Faculty Member'}</strong>,</p>
-                                
-                                <p style="font-size: 16px; line-height: 1.6;">
-                                    You have one added class today on this class ${data.courseName} due to a faculty leave. 
-                                    Please ensure you are present at the scheduled time.
-                                </p>
-                                
-                                <!-- Details Box -->
-                                <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 6px; padding: 20px; margin: 25px 0;">
-                                    <table style="width: 100%; border-collapse: collapse;">
-                                        <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px; width: 100px;">Department</td>
-                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.deptName || 'N/A'}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Program</td>
-                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.programName || 'N/A'} (S${data.semesterNo || '?'})</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Course</td>
-                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${data.courseName}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Date</td>
-                                            <td style="padding: 8px 0; color: #0f172a; font-weight: 600; font-size: 16px;">${new Date(data.date).toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</td>
-                                        </tr>
-                                        <tr>
-                                            <td style="padding: 8px 0; color: #64748b; font-size: 14px;">Time</td>
-                                            <td style="padding: 8px 0; color: #f59e0b; font-weight: 700; font-size: 16px;">${data.timeRange}</td>
-                                        </tr>
-                                    </table>
+                                <p>Dear <strong>${userData.displayName}</strong>,</p>
+                                <p>You have been assigned as a substitute for the following class:</p>
+                                <div style="background: #f8fafc; padding: 20px; border-radius: 6px; margin: 20px 0;">
+                                    <strong>Course:</strong> ${data.courseName}<br/>
+                                    <strong>Class:</strong> ${data.deptName} ${data.programName} S${data.semesterNo}<br/>
+                                    <strong>Time:</strong> ${data.timeRange}<br/>
+                                    <strong>Date:</strong> ${data.date}
                                 </div>
-
-                                <p style="font-size: 14px; color: #64748b; margin-top: 30px; text-align: center;">
-                                    You can view your full updated schedule on the Faculty Dashboard.
-                                </p>
-                                
-                                <div style="text-align: center; margin-top: 20px;">
-                                    <a href="#" style="background-color: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: 600; font-size: 14px; display: inline-block;">View Dashboard</a>
-                                </div>
-                            </div>
-                            
-                            <!-- Footer -->
-                            <div style="background-color: #f1f5f9; padding: 15px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
-                                <p style="margin: 0;">This is an automated notification. Please do not reply.</p>
+                                <p>Please check your dashboard for details.</p>
                             </div>
                         </div>
                     `;
-
-                    await sendEmailNotification(
-                        userData.email,
-                        `[VoxLog] Urgent: Substitution Assigned - ${data.courseName} (${data.date})`,
-                        htmlEmail
-                    );
+                    await sendEmailNotification(userData.email, `[VoxLog] Substitution Assignment: ${data.courseName}`, htmlEmail);
                 }
             }
-        } catch (mailError) {
-            console.error("Failed to send email notification:", mailError);
-        }
+        } catch (e) { console.error("Mail err:", e); }
 
         return { success: true };
     } catch (error) {
@@ -254,32 +184,14 @@ export const getSubstitutionsForFaculty = async (facultyId, dateString = null) =
     try {
         let q;
         if (dateString) {
-            q = query(
-                collection(db, "substitutions"),
-                where("substituteFacultyId", "==", facultyId),
-                where("date", "==", dateString)
-            );
+            q = query(collection(db, "substitutions"), where("substituteFacultyId", "==", facultyId), where("date", "==", dateString));
         } else {
-            q = query(
-                collection(db, "substitutions"),
-                where("substituteFacultyId", "==", facultyId),
-                orderBy("date", "desc")
-            );
+            q = query(collection(db, "substitutions"), where("substituteFacultyId", "==", facultyId), orderBy("date", "desc"));
         }
-
-        const querySnapshot = await getDocs(q);
-        return querySnapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                courseId: data.courseId || data.subjectId
-            };
-        });
-
+        const snap = await getDocs(q);
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-        console.error("Error fetching substitutions:", error);
-        // Fallback for indexing errors
+        console.error("Fetch subs err:", error);
         return [];
     }
 };
@@ -301,115 +213,58 @@ export const getSubstitutionsForClass = async (classId, dateString) => {
 
 export const getAllTodaysSubstitutions = async (dateString) => {
     try {
-        const q = query(
-            collection(db, "substitutions"),
-            where("date", "==", dateString)
-        );
+        const q = query(collection(db, "substitutions"), where("date", "==", dateString));
         const snap = await getDocs(q);
-        return snap.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                ...data,
-                courseId: data.courseId || data.subjectId
-            };
-        });
+        return snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
     } catch (error) {
-        console.error("Error fetching all today's substitutions:", error);
         return [];
     }
 };
 
-export const checkSubstitutionForAttendance = async (dateString, periodIndex, section, courseId) => {
-    // Helper to find if there is a substitution for a specific class slot
-    // 'section' is tricky because substitutions stores 'classId' (semesterId).
-    // The AttendanceModal usually knows the semesterId (program.semesterId).
-    // We'll trust the caller to pass enough info or we query loosely.
-
-    // For specific authentication check:
-    // We need to find if there is a substitution doc for: date, periodIndex, courseId (or classId)
-    // AND return the substituteFacultyId.
-
+export const checkSubstitutionForAttendance = async (dateString, periodIndex, courseId) => {
     try {
-        // We'll search by date + subjectId (UI courseId) + periodIndex to be precise
         const q = query(
             collection(db, "substitutions"),
             where("date", "==", dateString),
-            where("subjectId", "==", courseId), // Maps from UI courseId
+            where("subjectId", "==", courseId),
             where("periodIndex", "==", periodIndex)
         );
         const snap = await getDocs(q);
-        if (!snap.empty) {
-            const data = snap.docs[0].data();
-            return {
-                ...data,
-                courseId: data.courseId || data.subjectId
-            };
-        }
-        return null;
-    } catch (error) {
-        console.error("Error checking substitution:", error);
-        return null;
-    }
+        return !snap.empty ? { id: snap.docs[0].id, ...snap.docs[0].data() } : null;
+    } catch (e) { return null; }
 };
 
-/**
- * Orchestrator: Get all classes that need substitution for a specific date
- * because the original faculty is on APPROVED leave.
- */
 export const getClassesNeedingSubstitution = async (dateString) => {
     try {
-        // 1. Get Approved AND Pending Leaves (to allow pre-arrangement)
-        console.log(`[DEBUG] Fetching leaves (Approved & Pending) for ${dateString}`);
-        // Import getAllLeavesForDate (need to update imports first if not auto-handled, but we'll assume same file structure)
-        // Wait, I need to make sure I import it in the file.
-        // Assuming I'll update imports in a separate step or just rely on 'getApprovedLeavesForDate' being replaced if I wanted to swap it out entirely.
-        // But I kept both. So I need to call the new one.
+        const [approvedLeaves, existingSubs] = await Promise.all([
+            getApprovedLeavesForDate(dateString),
+            getAllTodaysSubstitutions(dateString)
+        ]);
 
-        // Let's assume the import is updated or I can use dynamic import? No.
-        // I will use getAllLeavesForDate here. 
-        // NOTE: I must update the import in substitutionService.js next.
-        const leaves = await getAllLeavesForDate(dateString);
-        console.log(`[DEBUG] Leaves found: ${leaves.length}`, leaves);
-        if (leaves.length === 0) return [];
+        if (approvedLeaves.length === 0) return [];
 
-        const needsSubstitution = [];
-
-        // 2. For each faculty on leave, get their schedule
-        await Promise.all(leaves.map(async (leave) => {
-            const schedule = await getFacultyScheduleForDate(leave.facultyId, dateString);
-
-            // 3. Annotate and check existing substitutions
-            await Promise.all(schedule.map(async (slot) => {
-                // Check if already substituted
-                const existingSub = await checkSubstitutionForAttendance(
-                    dateString,
-                    slot.periodIndex,
-                    null,
-                    slot.courseId
-                );
-
-                needsSubstitution.push({
-                    ...slot,
-                    originalFacultyId: leave.facultyId,
-                    originalFacultyName: leave.facultyName,
-                    leaveReason: leave.reason,
-                    leaveType: leave.type,
-                    leaveStatus: leave.status, // Pass status (Pending/Approved)
-                    status: existingSub ? 'Covered' : 'Pending',
-                    substituteName: existingSub ? existingSub.substituteName : null,
-                    // Pass academic metadata
-                    semesterNo: slot.semesterNo,
-                    programName: slot.programName,
-                    deptName: slot.deptName
-                });
-            }));
-        }));
-
-        return needsSubstitution;
-
+        const schedulesArray = await Promise.all(
+            approvedLeaves.map(leave => getFacultyScheduleForDate(leave.facultyId, dateString))
+        );
+        
+        const impactedClasses = schedulesArray.flat();
+        
+        return impactedClasses.map(slot => {
+            const leave = approvedLeaves.find(l => l.facultyId === slot.facultyId);
+            const sub = existingSubs.find(s => s.periodIndex === slot.periodIndex && s.classId === slot.semesterId);
+            
+            return {
+                ...slot,
+                originalFacultyId: slot.facultyId,
+                originalFacultyName: leave?.facultyName || 'Faculty',
+                leaveReason: leave?.reason,
+                leaveStatus: leave?.status,
+                status: sub ? 'Covered' : 'Pending',
+                substituteName: sub ? sub.substituteName : null
+            };
+        });
     } catch (error) {
-        console.error("Error fetching classes needing substitution:", error);
+        console.error("Needing sub err:", error);
         return [];
     }
 };

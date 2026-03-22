@@ -90,14 +90,10 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
     const validateField = (name, value) => {
         let error = "";
 
-        // Required Fields List
+        // Required Fields List (Loosened for consistency)
         const requiredFields = [
             'displayName', 'email', 'role', 'status',
-            'gender', 'dateOfBirth', 'nationality', 'maritalStatus',
-            'department', 'designation', 'employeeId', 'joiningDate',
-            'specialization', 'qualifications', 'experience',
-            'phone', 'address', 'city', 'state', 'zipCode',
-            'emergencyContactName', 'emergencyContactRelation', 'emergencyContactPhone'
+            'department', 'designation', 'employeeId'
         ];
 
         if (requiredFields.includes(name)) {
@@ -174,8 +170,7 @@ const UserModal = ({ isOpen, onClose, onSubmit, editingUser = null }) => {
         e.preventDefault();
 
         if (!validateForm()) {
-            // Optional: alert or just focus first error
-            // alert("Please fix the errors in the form.");
+            alert("Please fill in all required fields (Name, Email, Role, Status, Department, Designation, Employee ID) and correct any errors.");
             return;
         }
 
